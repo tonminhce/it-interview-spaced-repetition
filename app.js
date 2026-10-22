@@ -1,22 +1,23 @@
 /**
- * Spaced Repetition IT Interview Flashcard App
- * Powered by SM-2 Algorithm & LocalStorage
+ * IT Interview Spaced Repetition (Linear & Raycast Inspired UI)
+ * Features: Bento Grid, Smooth Reveal Flashcard, Mac Terminal Code Blocks,
+ * Command Palette (Ctrl+K), SM-2 Algorithm & Canvas Confetti.
  */
 
-// Topic definitions & ordering
+// Technology configuration with distinctive branding colors & glows
 const TOPICS_CONFIG = [
-  { id: 'all', name: 'Tất cả chuyên đề (All Topics)', icon: '🌟', color: '#6366f1' },
-  { id: 'java', name: 'Java Core & JVM', icon: '☕', color: '#f89820' },
-  { id: 'spring-spring-boot', name: 'Spring & Spring Boot', icon: '🍃', color: '#6db33f' },
-  { id: 'redis', name: 'Redis Caching & Data Structures', icon: '⚡', color: '#dc382d' },
-  { id: 'kafka', name: 'Apache Kafka Event Streaming', icon: '📨', color: '#00b4d8' },
-  { id: 'system-design', name: 'System Design & High Availability', icon: '📐', color: '#8b5cf6' },
-  { id: 'database-essentials', name: 'Database Essentials & SQL Internals', icon: '🗄️', color: '#3b82f6' },
-  { id: 'postgresql', name: 'PostgreSQL Deep Dive', icon: '🐘', color: '#336791' },
-  { id: 'docker-kubernetes', name: 'Docker & Kubernetes (DevOps)', icon: '🐳', color: '#0db7ed' }
+  { id: 'all', name: 'Tất cả chuyên đề (Full IT Deck)', icon: '🌟', color: '#6366f1', glow: 'rgba(99, 102, 241, 0.35)', desc: 'Tổng hợp toàn bộ 758 câu hỏi phỏng vấn chuẩn hóa' },
+  { id: 'java', name: 'Java Core & JVM Internals', icon: '☕', color: '#f89820', glow: 'rgba(248, 152, 32, 0.35)', desc: 'Bytecode, JVM Memory, GC (G1/ZGC), Concurrency, Collections' },
+  { id: 'spring-spring-boot', name: 'Spring & Spring Boot', icon: '🍃', color: '#10b981', glow: 'rgba(16, 185, 129, 0.35)', desc: 'IoC/DI, AOP, Bean Lifecycle, Transaction, Microservices' },
+  { id: 'redis', name: 'Redis Caching & Architecture', icon: '⚡', color: '#ef4444', glow: 'rgba(239, 68, 68, 0.35)', desc: 'Data structures, RDB/AOF, Cluster, Sentinel, Redlock' },
+  { id: 'kafka', name: 'Apache Kafka Event Streaming', icon: '📨', color: '#06b6d4', glow: 'rgba(6, 182, 212, 0.35)', desc: 'Partitions, Consumer Groups, Exactly-once, Rebalance' },
+  { id: 'system-design', name: 'System Design & Scalability', icon: '📐', color: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.35)', desc: 'High Availability, Sharding, CAP, Rate Limiting, Microservices' },
+  { id: 'database-essentials', name: 'Database Essentials & SQL', icon: '🗄️', color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.35)', desc: 'B-Tree Index, ACID, MVCC, Locks, Query Optimization' },
+  { id: 'postgresql', name: 'PostgreSQL Deep Dive', icon: '🐘', color: '#38bdf8', glow: 'rgba(56, 189, 248, 0.35)', desc: 'VACUUM, WAL, HOT Updates, GIN/BRIN, EXPLAIN ANALYZE' },
+  { id: 'docker-kubernetes', name: 'Docker & Kubernetes (DevOps)', icon: '🐳', color: '#0ea5e9', glow: 'rgba(14, 165, 233, 0.35)', desc: 'Image Layers, Pods, Services, Ingress, Deployments, HPA' }
 ];
 
-// App State
+// Application State
 const state = {
   data: null,
   allCards: [],
@@ -26,12 +27,14 @@ const state = {
   currentTopicId: null,
   currentCardIndex: 0,
   studyQueue: [],
-  isFlipped: false,
-  language: 'vi', // 'vi' | 'en'
+  isRevealed: false,   // Smooth reveal state
+  language: 'vi',      // 'vi' | 'en'
   searchQuery: '',
   filterLevel: 'all',
   filterStatus: 'all',
-  theme: localStorage.getItem('srs_theme') || 'dark'
+  theme: localStorage.getItem('srs_theme') || 'dark',
+  cmdPaletteOpen: false,
+  cmdSelectedIndex: 0
 };
 
 // Utilities
@@ -43,23 +46,92 @@ const addDays = (dateStr, days) => {
   return d.toISOString().split('T')[0];
 };
 
-// Markdown fallback simple renderer in case marked isn't available
-function renderMarkdown(md) {
+// Markdown Renderer with Mac Terminal Code Blocks & Callouts
+function renderEnhancedMarkdown(md) {
   if (!md) return '';
+  let rawHtml = '';
+
   if (window.marked && typeof window.marked.parse === 'function') {
-    return window.marked.parse(md);
+    rawHtml = window.marked.parse(md);
+  } else {
+    rawHtml = md
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+      .replace(/\*(.*)\*/gim, '<em>$1</em>')
+      .replace(/`([^`]+)`/gim, '<code>$1</code>')
+      .replace(/\n\n/gim, '<p></p>')
+      .replace(/\n/gim, '<br>');
   }
-  // Simple fallback
-  let html = md
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-    .replace(/\*(.*)\*/gim, '<em>$1</em>')
-    .replace(/`([^`]+)`/gim, '<code>$1</code>')
-    .replace(/\n\n/gim, '<p></p>')
-    .replace(/\n/gim, '<br>');
-  return html;
+
+  // Inject Mac Terminal window chrome onto <pre><code> blocks
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = rawHtml;
+
+  const preBlocks = tempDiv.querySelectorAll('pre');
+  preBlocks.forEach((pre, index) => {
+    const code = pre.querySelector('code');
+    const codeText = code ? code.innerText : pre.innerText;
+    
+    // Detect language if marked annotated it
+    let lang = 'CODE';
+    if (code && code.className) {
+      const match = code.className.match(/language-([a-z0-9]+)/i);
+      if (match) lang = match[1].toUpperCase();
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mac-terminal-block';
+
+    const header = document.createElement('div');
+    header.className = 'mac-terminal-header';
+    header.innerHTML = `
+      <div class="mac-dots">
+        <span class="mac-dot dot-red"></span>
+        <span class="mac-dot dot-yellow"></span>
+        <span class="mac-dot dot-green"></span>
+      </div>
+      <span class="terminal-lang-badge">${lang}</span>
+      <button class="btn-copy-code" onclick="copySnippet(this, ${index})">Copy</button>
+    `;
+
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(header);
+    wrapper.appendChild(pre);
+
+    // Save text in a data attribute for easy copying
+    wrapper.setAttribute('data-code', encodeURIComponent(codeText));
+  });
+
+  // Enhance Callouts for Key Takeaways / Warnings
+  const blockquotes = tempDiv.querySelectorAll('blockquote');
+  blockquotes.forEach(bq => {
+    bq.className = 'callout-box';
+    if (bq.innerText.toLowerCase().includes('lỗi thường gặp') || bq.innerText.toLowerCase().includes('pitfall') || bq.innerText.toLowerCase().includes('lưu ý')) {
+      bq.className = 'callout-box callout-pitfall';
+    }
+  });
+
+  return tempDiv.innerHTML;
+}
+
+// Copy Code Snippet Handler
+function copySnippet(btn, index) {
+  const wrapper = btn.closest('.mac-terminal-block');
+  if (!wrapper) return;
+  const rawCode = decodeURIComponent(wrapper.getAttribute('data-code') || '');
+  navigator.clipboard.writeText(rawCode).then(() => {
+    const originalText = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    btn.style.color = '#10b981';
+    btn.style.borderColor = '#10b981';
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 2000);
+  });
 }
 
 // Spaced Repetition Engine (SuperMemo SM-2)
@@ -71,11 +143,11 @@ class SRSEngine {
   static getCardRecord(key) {
     if (!state.srsData.cards[key]) {
       return {
-        state: 'new',       // 'new' | 'learning' | 'review' | 'mastered'
-        interval: 0,        // days
-        ease: 2.5,          // default ease factor
-        reps: 0,            // successful repetitions
-        lapses: 0,          // times failed (rated again)
+        state: 'new',
+        interval: 0,
+        ease: 2.5,
+        reps: 0,
+        lapses: 0,
         due: getTodayStr(),
         lastReviewed: null,
         starred: false
@@ -98,16 +170,13 @@ class SRSEngine {
       console.warn('Failed to load srs data from localStorage:', e);
     }
 
-    // Check streak
     const today = getTodayStr();
     if (!state.srsData.stats) {
       state.srsData.stats = { reviewsToday: 0, lastStudyDate: today, streak: 0 };
     }
     if (state.srsData.stats.lastStudyDate !== today) {
       const yesterday = addDays(today, -1);
-      if (state.srsData.stats.lastStudyDate === yesterday) {
-        // Streak continues
-      } else if (state.srsData.stats.lastStudyDate !== today) {
+      if (state.srsData.stats.lastStudyDate !== yesterday && state.srsData.stats.lastStudyDate !== today) {
         state.srsData.stats.streak = 0;
       }
       state.srsData.stats.reviewsToday = 0;
@@ -130,48 +199,37 @@ class SRSEngine {
   }
 
   static rateCard(key, rating) {
-    // rating: 1 = Again, 2 = Hard, 3 = Good, 4 = Easy
     let record = SRSEngine.getCardRecord(key);
     let today = getTodayStr();
 
     record.lastReviewed = new Date().toISOString();
 
     if (rating === 1) {
-      // Again (Failed)
       record.reps = 0;
       record.interval = 1;
       record.ease = Math.max(1.3, (record.ease || 2.5) - 0.2);
       record.lapses = (record.lapses || 0) + 1;
       record.state = 'learning';
-      record.due = today; // Repeat in current day
+      record.due = today;
     } else if (rating === 2) {
-      // Hard
       record.reps = (record.reps || 0) + 1;
       record.interval = Math.max(1, Math.round((record.interval || 1) * 1.2));
       record.ease = Math.max(1.3, (record.ease || 2.5) - 0.15);
       record.state = record.reps >= 4 ? 'mastered' : 'review';
       record.due = addDays(today, record.interval);
     } else if (rating === 3) {
-      // Good
-      if (record.reps === 0) {
-        record.interval = 1;
-      } else if (record.reps === 1) {
-        record.interval = 3;
-      } else {
-        record.interval = Math.max(2, Math.round((record.interval || 1) * (record.ease || 2.5)));
-      }
+      if (record.reps === 0) record.interval = 1;
+      else if (record.reps === 1) record.interval = 3;
+      else record.interval = Math.max(2, Math.round((record.interval || 1) * (record.ease || 2.5)));
+      
       record.reps = (record.reps || 0) + 1;
       record.state = record.reps >= 4 ? 'mastered' : 'review';
       record.due = addDays(today, record.interval);
     } else if (rating === 4) {
-      // Easy
-      if (record.reps === 0) {
-        record.interval = 3;
-      } else if (record.reps === 1) {
-        record.interval = 6;
-      } else {
-        record.interval = Math.max(4, Math.round((record.interval || 1) * (record.ease || 2.5) * 1.3));
-      }
+      if (record.reps === 0) record.interval = 3;
+      else if (record.reps === 1) record.interval = 6;
+      else record.interval = Math.max(4, Math.round((record.interval || 1) * (record.ease || 2.5) * 1.3));
+      
       record.reps = (record.reps || 0) + 1;
       record.ease = (record.ease || 2.5) + 0.15;
       record.state = record.reps >= 3 ? 'mastered' : 'review';
@@ -179,12 +237,8 @@ class SRSEngine {
     }
 
     state.srsData.cards[key] = record;
-
-    // Update study streak
     state.srsData.stats.reviewsToday = (state.srsData.stats.reviewsToday || 0) + 1;
-    if (state.srsData.stats.streak === 0) {
-      state.srsData.stats.streak = 1;
-    }
+    if (state.srsData.stats.streak === 0) state.srsData.stats.streak = 1;
     state.srsData.stats.lastStudyDate = today;
 
     SRSEngine.saveSRS();
@@ -205,10 +259,9 @@ function initData() {
   const rawData = window.INTERVIEW_DATA;
   if (!rawData) {
     document.getElementById('app').innerHTML = `
-      <div class="container empty-state">
-        <div class="empty-state-icon">⚠️</div>
-        <h2 class="empty-state-title">Chưa tìm thấy dữ liệu</h2>
-        <p class="empty-state-desc">Vui lòng đảm bảo file <code>data.js</code> hoặc <code>data.json</code> đã được nạp.</p>
+      <div class="container" style="text-align: center; padding: 5rem 1rem;">
+        <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚠️ Chưa tìm thấy dữ liệu câu hỏi</h2>
+        <p style="color: var(--text-secondary);">Vui lòng kiểm tra file <code>data.js</code>.</p>
       </div>
     `;
     return;
@@ -237,7 +290,7 @@ function initData() {
   renderApp();
 }
 
-// Theme handling
+// Theme Handling
 function applyTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute('data-theme', theme);
@@ -252,16 +305,11 @@ function toggleTheme() {
   applyTheme(state.theme === 'dark' ? 'light' : 'dark');
 }
 
-// Statistics Calculators
+// Statistics Calculations
 function getTopicStats(topicId) {
-  let cards = [];
-  if (topicId === 'all') {
-    cards = state.allCards;
-  } else if (state.topicMap[topicId]) {
-    cards = state.topicMap[topicId].questions || [];
-  }
-
+  let cards = topicId === 'all' ? state.allCards : (state.topicMap[topicId]?.questions || []);
   const today = getTodayStr();
+
   let mastered = 0;
   let learning = 0;
   let due = 0;
@@ -273,35 +321,25 @@ function getTopicStats(topicId) {
     const srs = state.srsData.cards[key];
     if (!srs || srs.state === 'new') {
       newCards++;
-      due++; // New cards count as due to learn
+      due++;
     } else {
       if (srs.state === 'mastered') mastered++;
       else learning++;
 
-      if (srs.due <= today) {
-        due++;
-      }
+      if (srs.due <= today) due++;
       if (srs.starred) starred++;
     }
   });
 
-  return {
-    total: cards.length,
-    mastered,
-    learning,
-    due,
-    newCards,
-    starred
-  };
+  return { total: cards.length, mastered, learning, due, newCards, starred };
 }
 
 function getGlobalStats() {
-  const topicStats = getTopicStats('all');
+  const stats = getTopicStats('all');
+  const pctMastered = stats.total > 0 ? Math.round((stats.mastered / stats.total) * 100) : 0;
   return {
-    total: topicStats.total,
-    mastered: topicStats.mastered,
-    learning: topicStats.learning,
-    due: topicStats.due,
+    ...stats,
+    pctMastered,
     reviewsToday: state.srsData.stats.reviewsToday || 0,
     streak: state.srsData.stats.streak || 0
   };
@@ -311,22 +349,23 @@ function getGlobalStats() {
 function navigateTo(view, topicId = null) {
   state.currentView = view;
   state.currentTopicId = topicId;
-  state.isFlipped = false;
+  state.isRevealed = false;
   state.currentCardIndex = 0;
 
   if (view === 'study') {
     setupStudyQueue(topicId);
   }
 
+  updateSessionProgress(0);
   renderApp();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function setupStudyQueue(topicId) {
-  let cards = topicId === 'all' ? [...state.allCards] : [...(state.topicMap[topicId].questions || [])];
+  let cards = topicId === 'all' ? [...state.allCards] : [...(state.topicMap[topicId]?.questions || [])];
   const today = getTodayStr();
 
-  // Prioritize: Due today / Overdue first, then New cards, then mastered
+  // Prioritize due cards first, then new, then learning
   cards.sort((a, b) => {
     const keyA = SRSEngine.getCardKey(a.topicId || topicId, a.id);
     const keyB = SRSEngine.getCardKey(b.topicId || topicId, b.id);
@@ -335,95 +374,114 @@ function setupStudyQueue(topicId) {
 
     const isDueA = !srsA || srsA.due <= today ? 1 : 0;
     const isDueB = !srsB || srsB.due <= today ? 1 : 0;
-
-    if (isDueA !== isDueB) return isDueB - isDueA;
-    return 0;
+    return isDueB - isDueA;
   });
 
   state.studyQueue = cards;
   state.currentCardIndex = 0;
 }
 
-// Render Master Functions
+function updateSessionProgress(pct) {
+  const fill = document.getElementById('session-progress-fill');
+  if (fill) fill.style.width = `${pct}%`;
+}
+
+// Master Render Function
 function renderApp() {
   const app = document.getElementById('app');
   if (!app) return;
 
   if (state.currentView === 'home') {
-    renderHomeView(app);
+    updateSessionProgress(0);
+    renderHomeBentoView(app);
   } else if (state.currentView === 'study') {
-    renderStudyView(app);
+    renderStudySmoothView(app);
   } else if (state.currentView === 'browse') {
+    updateSessionProgress(0);
     renderBrowseView(app);
   }
 }
 
-// 1. Home View
-function renderHomeView(container) {
-  const gStats = getGlobalStats();
+// ==========================================================================
+// 1. HOME VIEW (BENTO GRID DASHBOARD)
+// ==========================================================================
+function renderHomeBentoView(container) {
+  const g = getGlobalStats();
 
   let html = `
-    <!-- Stats Banner -->
-    <section class="stats-banner">
+    <main class="main-content">
       <div class="container">
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-icon" style="color: #6366f1;">📚</div>
-            <div class="stat-content">
-              <span class="stat-value">${gStats.total}</span>
-              <span class="stat-label">Tổng câu hỏi</span>
+        <!-- Bento Top Hero Section -->
+        <div class="bento-hero-section">
+          <!-- Bento Cell 1: Goal & Quick Resume -->
+          <div class="bento-cell bento-hero-cell">
+            <div>
+              <div class="hero-tag">Mục Tiêu Ôn Luyện Hôm Nay</div>
+              <h2 class="hero-goal-title">
+                ${g.due > 0 ? `Bạn có <span style="color: #6366f1;">${g.due} câu hỏi</span> cần ôn tập` : `🎉 Bạn đã hoàn thành toàn bộ mục tiêu hôm nay!`}
+              </h2>
+              <p class="hero-goal-desc">
+                Ứng dụng thuật toán Spaced Repetition (SM-2) để tối ưu thời điểm ôn tập lặp lại, giúp biến kiến thức phỏng vấn IT thành phản xạ tự nhiên.
+              </p>
+            </div>
+
+            <div class="hero-actions-bar">
+              <button class="btn btn-primary" onclick="navigateTo('study', 'all')">
+                ⚡ Ôn Tập Ngay (${g.due > 0 ? g.due : g.total} Thẻ)
+              </button>
+              <button class="cmd-k-trigger" onclick="openCommandPalette()">
+                <span>🔍 Tìm kiếm nhanh</span>
+                <kbd>Ctrl K</kbd>
+              </button>
             </div>
           </div>
-          <div class="stat-item">
-            <div class="stat-icon" style="color: #ef4444;">⏰</div>
-            <div class="stat-content">
-              <span class="stat-value">${gStats.due}</span>
-              <span class="stat-label">Cần ôn hôm nay</span>
-            </div>
+
+          <!-- Bento Cell 2: Streak Widget -->
+          <div class="bento-cell bento-streak-cell">
+            <div class="streak-flame-wrapper">🔥</div>
+            <div class="streak-value">${g.streak} <span style="font-size: 1rem; color: var(--text-secondary); font-weight: 500;">ngày</span></div>
+            <div class="streak-label">Chuỗi ngày ôn luyện</div>
+            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem;">
+              ${g.reviewsToday > 0 ? `Hôm nay đã ôn ${g.reviewsToday} lượt.` : `Chưa ôn câu nào hôm nay.`}
+            </p>
           </div>
-          <div class="stat-item">
-            <div class="stat-icon" style="color: #3b82f6;">📖</div>
-            <div class="stat-content">
-              <span class="stat-value">${gStats.learning}</span>
-              <span class="stat-label">Đang rèn luyện</span>
+
+          <!-- Bento Cell 3: Global Mastery Progress -->
+          <div class="bento-cell" style="justify-content: space-between;">
+            <div>
+              <div class="streak-label">Mức Độ Thành Thạo</div>
+              <div class="bento-stat-number" style="margin-top: 0.4rem; color: #10b981;">${g.pctMastered}%</div>
+              <p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                ${g.mastered} / ${g.total} câu thuộc lòng
+              </p>
             </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon" style="color: #10b981;">🏆</div>
-            <div class="stat-content">
-              <span class="stat-value">${gStats.mastered}</span>
-              <span class="stat-label">Đã thành thạo</span>
-            </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon" style="color: #f59e0b;">🔥</div>
-            <div class="stat-content">
-              <span class="stat-value">${gStats.streak} ngày</span>
-              <span class="stat-label">Chuỗi học tập</span>
+
+            <div style="margin-top: 1rem;">
+              <div class="progress-stacked-bar">
+                <div class="prog-seg-mastered" style="width: ${g.pctMastered}%;"></div>
+                <div class="prog-seg-learning" style="width: ${Math.round((g.learning / g.total) * 100)}%;"></div>
+              </div>
+              <div class="progress-legend-row" style="margin-bottom: 0;">
+                <span>📖 ${g.learning} đang rèn</span>
+                <span>✨ ${g.newCards} mới</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- Main Section -->
-    <main class="main-content">
-      <div class="container">
-        <div class="section-header">
+        <!-- Section Title -->
+        <div class="section-headline">
           <div>
-            <h1 class="section-title">Chọn Chuyên Đề Phỏng Vấn IT</h1>
-            <p class="section-subtitle">Spaced Repetition Flashcards phân loại theo từng mảng công nghệ chuyên sâu</p>
+            <h2 class="section-title">Chuyên Đề Công Nghệ (8 Khối Kiến Thức)</h2>
+            <p class="section-caption">Chọn một chuyên đề để bắt đầu ôn tập chuyên sâu hoặc xem toàn bộ danh sách</p>
           </div>
-          <div class="filter-bar">
-            <div class="search-input-wrapper">
-              <span class="search-icon">🔍</span>
-              <input type="text" id="topic-search-input" class="search-input" placeholder="Tìm kiếm câu hỏi nhanh..." value="${state.searchQuery}">
-            </div>
+          <div style="display: flex; gap: 0.5rem;">
             <button class="btn btn-secondary" onclick="openDataModal()">⚙️ Quản lý dữ liệu</button>
           </div>
         </div>
 
-        <div class="topics-grid">
+        <!-- Tech Bento Grid -->
+        <div class="bento-topics-grid">
   `;
 
   TOPICS_CONFIG.forEach(topic => {
@@ -433,42 +491,45 @@ function renderHomeView(container) {
     const newPct = stats.total > 0 ? 100 - masteredPct - learningPct : 100;
 
     html += `
-      <div class="topic-card" style="border-top: 4px solid ${topic.color};">
-        <div class="topic-card-header">
-          <div class="topic-meta">
-            <div class="topic-icon-box" style="color: ${topic.color};">${topic.icon}</div>
-            <div>
-              <h2 class="topic-title">${topic.name}</h2>
-              <span class="topic-count">${stats.total} câu hỏi chuẩn hóa</span>
-            </div>
+      <div class="tech-card" style="--topic-accent: ${topic.color}; --topic-glow: ${topic.glow};">
+        <div class="tech-card-header">
+          <div class="tech-icon-container" style="color: ${topic.color};">${topic.icon}</div>
+          <div class="tech-title-group">
+            <h3>${topic.name}</h3>
+            <span class="tech-count-badge">${stats.total} câu hỏi chuẩn hóa</span>
           </div>
         </div>
 
-        <div class="topic-progress-wrapper">
-          <div class="progress-bar-bg">
-            <div class="progress-segment seg-mastered" style="width: ${masteredPct}%;" title="Thành thạo: ${stats.mastered}"></div>
-            <div class="progress-segment seg-learning" style="width: ${learningPct}%;" title="Đang học: ${stats.learning}"></div>
-            <div class="progress-segment seg-new" style="width: ${newPct}%;" title="Thẻ mới: ${stats.newCards}"></div>
-          </div>
-          <div class="progress-labels">
-            <span>Tiến độ thành thạo: <strong>${masteredPct}%</strong></span>
-            <span>${stats.mastered}/${stats.total}</span>
-          </div>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1.15rem; line-height: 1.45;">
+          ${topic.desc}
+        </p>
+
+        <!-- Progress Bar -->
+        <div class="progress-stacked-bar">
+          <div class="prog-seg-mastered" style="width: ${masteredPct}%;" title="Thành thạo: ${stats.mastered}"></div>
+          <div class="prog-seg-learning" style="width: ${learningPct}%;" title="Đang học: ${stats.learning}"></div>
+          <div class="prog-seg-new" style="width: ${newPct}%;" title="Thẻ mới: ${stats.newCards}"></div>
+        </div>
+        <div class="progress-legend-row">
+          <span>Tiến độ thành thạo: <strong>${masteredPct}%</strong></span>
+          <span>${stats.mastered}/${stats.total}</span>
         </div>
 
-        <div class="topic-badges">
-          ${stats.due > 0 ? `<span class="srs-badge badge-due">⏰ ${stats.due} cần ôn</span>` : `<span class="srs-badge badge-mastered">✓ Đã hoàn thành</span>`}
-          <span class="srs-badge badge-learning">📖 ${stats.learning} đang học</span>
-          <span class="srs-badge badge-new">✨ ${stats.newCards} mới</span>
-          ${stats.starred > 0 ? `<span class="srs-badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">⭐ ${stats.starred}</span>` : ''}
+        <!-- Badges -->
+        <div class="tech-badge-row">
+          ${stats.due > 0 ? `<span class="mini-badge badge-due-glow">⏰ ${stats.due} cần ôn</span>` : `<span class="mini-badge badge-mastered-glow">✓ Đã xong hôm nay</span>`}
+          <span class="mini-badge badge-learning-glow">📖 ${stats.learning} đang học</span>
+          <span class="mini-badge badge-new-dim">✨ ${stats.newCards} mới</span>
+          ${stats.starred > 0 ? `<span class="mini-badge" style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.25);">⭐ ${stats.starred}</span>` : ''}
         </div>
 
-        <div class="topic-actions">
+        <!-- Actions -->
+        <div class="tech-card-actions">
           <button class="btn btn-primary" onclick="navigateTo('study', '${topic.id}')">
             🔥 Học Ngay (${stats.due > 0 ? stats.due : stats.total})
           </button>
-          <button class="btn btn-secondary" onclick="navigateTo('browse', '${topic.id}')" title="Xem danh sách câu hỏi">
-            📋 Xem tất cả
+          <button class="btn btn-secondary" onclick="navigateTo('browse', '${topic.id}')" title="Xem danh mục câu hỏi">
+            📋 Danh sách
           </button>
         </div>
       </div>
@@ -482,34 +543,37 @@ function renderHomeView(container) {
   `;
 
   container.innerHTML = html;
-
-  // Search input binding
-  const searchInput = document.getElementById('topic-search-input');
-  if (searchInput) {
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        state.searchQuery = searchInput.value.trim();
-        navigateTo('browse', 'all');
-      }
-    });
-  }
 }
 
-// 2. Study View (Flashcards)
-function renderStudyView(container) {
+// ==========================================================================
+// 2. STUDY VIEW (SMOOTH EXPAND / REVEAL FLASHCARD ENGINE)
+// ==========================================================================
+function renderStudySmoothView(container) {
   const topicId = state.currentTopicId;
   const topicCfg = TOPICS_CONFIG.find(t => t.id === topicId) || TOPICS_CONFIG[0];
   const totalInQueue = state.studyQueue.length;
 
+  // Calculate current progress %
+  const currentPct = totalInQueue > 0 ? Math.round(((state.currentCardIndex) / totalInQueue) * 100) : 100;
+  updateSessionProgress(currentPct);
+
+  // Deck completed state
   if (totalInQueue === 0 || state.currentCardIndex >= totalInQueue) {
+    updateSessionProgress(100);
+    triggerConfetti();
+
     container.innerHTML = `
       <main class="main-content">
-        <div class="container study-container">
-          <div class="empty-state">
-            <div class="empty-state-icon">🎉</div>
-            <h2 class="empty-state-title">Tuyệt vời! Bạn đã hoàn thành phiên ôn tập!</h2>
-            <p class="empty-state-desc">Tất cả các thẻ trong chuyên đề <strong>${topicCfg.name}</strong> đã được đánh giá và lên lịch lặp lại ngắt quãng SM-2.</p>
-            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <div class="container study-view-wrapper">
+          <div class="smooth-card" style="text-align: center; padding: 4rem 2rem;">
+            <div style="font-size: 3.5rem; margin-bottom: 1rem;">🎉</div>
+            <h2 style="font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 0.5rem;">
+              Tuyệt vời! Bạn đã hoàn thành phiên ôn tập!
+            </h2>
+            <p style="color: var(--text-secondary); max-width: 480px; margin: 0 auto 1.75rem auto; line-height: 1.6;">
+              Tất cả các thẻ trong chuyên đề <strong>${topicCfg.name}</strong> đã được đánh giá và cập nhật chu kỳ Spaced Repetition (SM-2).
+            </p>
+            <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
               <button class="btn btn-primary" onclick="navigateTo('home')">🏠 Quay về Trang Chủ</button>
               <button class="btn btn-secondary" onclick="setupStudyQueue('${topicId}'); renderApp();">🔄 Ôn Lại Tất Cả Thẻ</button>
             </div>
@@ -530,120 +594,135 @@ function renderStudyView(container) {
   const answerMarkdown = isVi ? card.a : (card.a_en || card.a);
   const isStarred = srsRecord.starred;
 
-  let levelTagClass = 'tag-beginner';
+  let levelTagClass = 'chip-beginner';
   let levelName = 'Cơ bản';
   if (card.level === 'intermediate') {
-    levelTagClass = 'tag-intermediate';
+    levelTagClass = 'chip-intermediate';
     levelName = 'Trung cấp';
   } else if (card.level === 'advanced') {
-    levelTagClass = 'tag-advanced';
+    levelTagClass = 'chip-advanced';
     levelName = 'Nâng cao';
   }
 
   let html = `
     <main class="main-content">
-      <div class="container study-container">
-        <!-- Top Nav Controls -->
-        <div class="study-nav">
-          <div class="study-info">
-            <button class="btn btn-secondary" onclick="navigateTo('home')">← Trang chủ</button>
-            <span class="study-title">${topicCfg.icon} ${topicCfg.name}</span>
-            <span class="study-counter">${state.currentCardIndex + 1} / ${totalInQueue}</span>
+      <div class="container study-view-wrapper">
+        <!-- Top Nav & Meta Bar -->
+        <div class="study-header-bar">
+          <div class="study-deck-meta">
+            <button class="btn btn-secondary" onclick="navigateTo('home')" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">
+              ← Trang chủ
+            </button>
+            <span class="study-deck-name">${topicCfg.icon} ${topicCfg.name}</span>
+            <span class="study-counter-chip">${state.currentCardIndex + 1} / ${totalInQueue}</span>
           </div>
-          <div class="study-options">
-            <button class="btn-lang-pill ${isVi ? 'active' : ''}" onclick="toggleLanguage('vi')">Tiếng Việt</button>
-            <button class="btn-lang-pill ${!isVi ? 'active' : ''}" onclick="toggleLanguage('en')">English</button>
+
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <div class="lang-switch-toggle">
+              <button class="lang-btn ${isVi ? 'active' : ''}" onclick="toggleLanguage('vi')">VI</button>
+              <button class="lang-btn ${!isVi ? 'active' : ''}" onclick="toggleLanguage('en')">EN</button>
+            </div>
             <button class="btn-icon" onclick="navigateTo('browse', '${topicId}')" title="Xem danh sách">📋</button>
           </div>
         </div>
 
-        <!-- Flashcard -->
-        <div class="flashcard-wrapper">
-          <div class="flashcard" id="active-flashcard">
-            <!-- Header -->
-            <div class="flashcard-header">
-              <div class="card-tags">
-                <span class="tag tag-category">${card.category || topicCfg.name}</span>
-                ${card.subcategory ? `<span class="tag tag-category">${card.subcategory}</span>` : ''}
-                <span class="tag ${levelTagClass}">${levelName}</span>
-                ${srsRecord.interval > 0 ? `<span class="tag" style="background: var(--bg-tertiary); color: var(--text-secondary);">Khoảng cách: ${srsRecord.interval}d</span>` : ''}
-              </div>
-              <div class="card-quick-actions">
-                <button class="btn-star ${isStarred ? 'active' : ''}" onclick="toggleCardStar('${cardKey}')" title="Đánh dấu sao câu này (Phím S)">
-                  ${isStarred ? '★' : '☆'}
-                </button>
-              </div>
+        <!-- Master Flashcard (Smooth Reveal) -->
+        <div class="smooth-card">
+          <!-- Card Topbar -->
+          <div class="smooth-card-topbar">
+            <div class="smooth-tag-cluster">
+              <span class="chip-tag chip-cat">${card.category || topicCfg.name}</span>
+              ${card.subcategory ? `<span class="chip-tag chip-cat">${card.subcategory}</span>` : ''}
+              <span class="chip-tag ${levelTagClass}">${levelName}</span>
+              ${srsRecord.interval > 0 ? `<span class="chip-tag chip-cat" style="color: var(--text-secondary);">Khoảng cách: ${srsRecord.interval}d</span>` : ''}
             </div>
 
-            <!-- Body -->
-            <div class="flashcard-body" onclick="handleCardBodyClick(event)">
-              <div class="question-text">${questionText}</div>
-
-              ${!state.isFlipped ? `
-                <div class="flip-prompt" onclick="flipCard()">
-                  <span style="font-size: 2rem;">💡</span>
-                  <span>Chạm vào đây hoặc nhấn <strong>Phím Space</strong> để lật xem đáp án chi tiết</span>
-                  <span class="flip-prompt-key">SPACE / ENTER</span>
-                </div>
-              ` : `
-                <div class="answer-section">
-                  <div class="answer-label">
-                    <span>⚡ Phân Tích & Câu Trả Lời Chuẩn Phỏng Vấn:</span>
-                  </div>
-                  <div class="markdown-content">
-                    ${renderMarkdown(answerMarkdown)}
-                  </div>
-
-                  ${card.references && card.references.length > 0 ? `
-                    <div class="card-references">
-                      <div class="card-references-title">Tài liệu tham khảo chuyên sâu:</div>
-                      ${card.references.map(ref => `<a href="${ref.url}" target="_blank" rel="noopener noreferrer">↗ ${ref.label || ref.url}</a>`).join('')}
-                    </div>
-                  ` : ''}
-                </div>
-              `}
+            <div class="card-actions-cluster">
+              <button class="btn-star-glow ${isStarred ? 'active' : ''}" onclick="toggleCardStar('${cardKey}')" title="Gắn sao câu hỏi này (Phím S)">
+                ${isStarred ? '★' : '☆'}
+              </button>
             </div>
+          </div>
+
+          <!-- Card Body -->
+          <div class="smooth-card-body">
+            <h1 class="card-question-title">${questionText}</h1>
+
+            ${!state.isRevealed ? `
+              <!-- Trigger Banner to reveal answer -->
+              <div class="reveal-trigger-banner" onclick="revealAnswer()">
+                <div class="reveal-icon-spark">💡</div>
+                <div class="reveal-prompt-text">
+                  <span>Bấm vào đây để mở rộng đáp án chi tiết</span>
+                  <kbd>SPACE / ENTER</kbd>
+                </div>
+              </div>
+            ` : `
+              <!-- Expanded Answer Content -->
+              <div class="expanded-answer-container">
+                <div class="answer-header-pill">
+                  <span>⚡ Phân Tích Kỹ Thuật & Lời Giải Chuẩn Phỏng Vấn:</span>
+                </div>
+
+                <div class="markdown-body">
+                  ${renderEnhancedMarkdown(answerMarkdown)}
+                </div>
+
+                ${card.references && card.references.length > 0 ? `
+                  <div class="references-footer">
+                    <div class="references-title">Tài liệu tham khảo chuyên sâu:</div>
+                    ${card.references.map(ref => `
+                      <a href="${ref.url}" target="_blank" rel="noopener noreferrer">↗ ${ref.label || ref.url}</a>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            `}
           </div>
         </div>
 
-        <!-- Controls Below Card -->
-        <div class="study-controls">
-          ${!state.isFlipped ? `
-            <div class="flip-button-bar">
-              <button class="btn-flip-large" onclick="flipCard()">
-                <span>🔄 Xem Đáp Án</span>
-                <span style="opacity: 0.7; font-size: 0.85rem; font-weight: normal;">[Space]</span>
+        <!-- Floating Action Dock (Always Visible, ratings active when revealed) -->
+        <div class="floating-action-dock">
+          ${!state.isRevealed ? `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <button class="btn btn-primary" onclick="revealAnswer()" style="width: 100%; padding: 0.85rem; font-size: 1rem;">
+                <span>💡 Xem Lời Giải Chi Tiết</span>
+                <kbd style="margin-left: 0.5rem; background: rgba(255,255,255,0.2); color: #fff;">SPACE</kbd>
               </button>
             </div>
           ` : `
-            <div class="srs-ratings-grid">
-              <button class="srs-btn srs-btn-again" onclick="rateCurrentCard(1)">
-                <span class="srs-btn-key">[1]</span>
-                <span class="srs-btn-time">${intervals.again}</span>
-                <span class="srs-btn-title">Lặp lại</span>
+            <div class="dock-ratings-grid">
+              <button class="dock-rate-btn btn-again-glow" onclick="rateCurrentCard(1)">
+                <span class="dock-key-badge"><kbd>1</kbd></span>
+                <span class="dock-time-pill">${intervals.again}</span>
+                <span class="dock-title">Lặp lại</span>
               </button>
-              <button class="srs-btn srs-btn-hard" onclick="rateCurrentCard(2)">
-                <span class="srs-btn-key">[2]</span>
-                <span class="srs-btn-time">${intervals.hard}</span>
-                <span class="srs-btn-title">Khó</span>
+              <button class="dock-rate-btn btn-hard-glow" onclick="rateCurrentCard(2)">
+                <span class="dock-key-badge"><kbd>2</kbd></span>
+                <span class="dock-time-pill">${intervals.hard}</span>
+                <span class="dock-title">Khó</span>
               </button>
-              <button class="srs-btn srs-btn-good" onclick="rateCurrentCard(3)">
-                <span class="srs-btn-key">[3]</span>
-                <span class="srs-btn-time">${intervals.good}</span>
-                <span class="srs-btn-title">Được</span>
+              <button class="dock-rate-btn btn-good-glow" onclick="rateCurrentCard(3)">
+                <span class="dock-key-badge"><kbd>3</kbd></span>
+                <span class="dock-time-pill">${intervals.good}</span>
+                <span class="dock-title">Được</span>
               </button>
-              <button class="srs-btn srs-btn-easy" onclick="rateCurrentCard(4)">
-                <span class="srs-btn-key">[4]</span>
-                <span class="srs-btn-time">${intervals.easy}</span>
-                <span class="srs-btn-title">Dễ</span>
+              <button class="dock-rate-btn btn-easy-glow" onclick="rateCurrentCard(4)">
+                <span class="dock-key-badge"><kbd>4</kbd></span>
+                <span class="dock-time-pill">${intervals.easy}</span>
+                <span class="dock-title">Dễ</span>
               </button>
             </div>
           `}
 
-          <div class="study-secondary-bar">
-            <button class="btn btn-secondary" onclick="prevCard()" ${state.currentCardIndex === 0 ? 'disabled' : ''}>← Thẻ trước</button>
-            <span>Phím tắt: <strong>Space</strong> lật | <strong>1 - 4</strong> đánh giá | <strong>S</strong> gắn sao</span>
-            <button class="btn btn-secondary" onclick="skipCard()">Bỏ qua →</button>
+          <div class="dock-aux-controls">
+            <button class="btn btn-secondary" onclick="prevCard()" ${state.currentCardIndex === 0 ? 'disabled' : ''} style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+              ← Thẻ trước
+            </button>
+            <span style="font-size: 0.75rem;">Phím: <kbd>Space</kbd> mở | <kbd>1-4</kbd> đánh giá | <kbd>S</kbd> sao | <kbd>L</kbd> ngôn ngữ</span>
+            <button class="btn btn-secondary" onclick="skipCard()" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+              Bỏ qua →
+            </button>
           </div>
         </div>
       </div>
@@ -653,30 +732,23 @@ function renderStudyView(container) {
   container.innerHTML = html;
 }
 
-// 3. Browse / List View
+// ==========================================================================
+// 3. BROWSE / LIST VIEW
+// ==========================================================================
 function renderBrowseView(container) {
   const topicId = state.currentTopicId || 'all';
   const topicCfg = TOPICS_CONFIG.find(t => t.id === topicId) || TOPICS_CONFIG[0];
+  let rawList = topicId === 'all' ? [...state.allCards] : [...(state.topicMap[topicId]?.questions || [])];
 
-  let rawList = topicId === 'all' ? [...state.allCards] : [...(state.topicMap[topicId].questions || [])];
-
-  // Filtering
   const query = state.searchQuery.toLowerCase();
   const filtered = rawList.filter(card => {
-    // Search keyword
     if (query) {
       const matchQ = (card.q || '').toLowerCase().includes(query) || (card.q_en || '').toLowerCase().includes(query);
       const matchA = (card.a || '').toLowerCase().includes(query);
       const matchSub = (card.subcategory || '').toLowerCase().includes(query);
       if (!matchQ && !matchA && !matchSub) return false;
     }
-
-    // Level filter
-    if (state.filterLevel !== 'all' && card.level !== state.filterLevel) {
-      return false;
-    }
-
-    // Status filter
+    if (state.filterLevel !== 'all' && card.level !== state.filterLevel) return false;
     if (state.filterStatus !== 'all') {
       const cardKey = SRSEngine.getCardKey(card.topicId || topicId, card.id);
       const srs = state.srsData.cards[cardKey] || { state: 'new' };
@@ -686,44 +758,37 @@ function renderBrowseView(container) {
       if (state.filterStatus === 'learning' && srs.state !== 'learning') return false;
       if (state.filterStatus === 'new' && srs.state !== 'new') return false;
     }
-
     return true;
   });
 
   let html = `
     <main class="main-content">
-      <div class="container browse-container">
-        <div class="section-header">
-          <div>
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <button class="btn btn-secondary" onclick="navigateTo('home')">← Quay lại</button>
-              <h1 class="section-title">${topicCfg.icon} ${topicCfg.name}</h1>
-            </div>
-            <p class="section-subtitle">Hiển thị ${filtered.length} / ${rawList.length} câu hỏi theo bộ lọc</p>
+      <div class="container" style="max-width: 980px;">
+        <div class="section-headline">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <button class="btn btn-secondary" onclick="navigateTo('home')">← Trang chủ</button>
+            <h1 class="section-title">${topicCfg.icon} ${topicCfg.name}</h1>
           </div>
-          <div>
-            <button class="btn btn-primary" onclick="navigateTo('study', '${topicId}')">🔥 Học Chuyên Đề Này</button>
-          </div>
+          <button class="btn btn-primary" onclick="navigateTo('study', '${topicId}')">🔥 Ôn Chuyên Đề Này</button>
         </div>
 
-        <!-- Filter and Search controls -->
-        <div style="background: var(--bg-secondary); padding: 1rem 1.25rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
-          <div class="search-input-wrapper" style="flex: 1; min-width: 250px;">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="browse-search" class="search-input" placeholder="Tìm theo câu hỏi, câu trả lời, từ khóa..." value="${state.searchQuery}">
+        <!-- Filter bar -->
+        <div style="background: var(--bg-surface-1); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;">
+          <div style="position: relative; flex: 1; min-width: 260px;">
+            <input type="text" id="browse-search-input" style="width: 100%; padding: 0.55rem 1rem; background: var(--bg-surface-2); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.88rem; outline: none;" placeholder="Tìm theo từ khóa câu hỏi, nội dung..." value="${state.searchQuery}">
           </div>
 
-          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-            <select id="filter-level-select" class="search-input" style="width: auto; padding-left: 1rem;" onchange="handleLevelFilter(this.value)">
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <select id="filter-level" onchange="state.filterLevel = this.value; renderBrowseView(document.getElementById('app'));" style="padding: 0.5rem 0.75rem; background: var(--bg-surface-2); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.85rem;">
               <option value="all" ${state.filterLevel === 'all' ? 'selected' : ''}>Mọi độ khó</option>
-              <option value="beginner" ${state.filterLevel === 'beginner' ? 'selected' : ''}>Cơ bản (Beginner)</option>
-              <option value="intermediate" ${state.filterLevel === 'intermediate' ? 'selected' : ''}>Trung cấp (Intermediate)</option>
-              <option value="advanced" ${state.filterLevel === 'advanced' ? 'selected' : ''}>Nâng cao (Advanced)</option>
+              <option value="beginner" ${state.filterLevel === 'beginner' ? 'selected' : ''}>Cơ bản</option>
+              <option value="intermediate" ${state.filterLevel === 'intermediate' ? 'selected' : ''}>Trung cấp</option>
+              <option value="advanced" ${state.filterLevel === 'advanced' ? 'selected' : ''}>Nâng cao</option>
             </select>
 
-            <select id="filter-status-select" class="search-input" style="width: auto; padding-left: 1rem;" onchange="handleStatusFilter(this.value)">
+            <select id="filter-status" onchange="state.filterStatus = this.value; renderBrowseView(document.getElementById('app'));" style="padding: 0.5rem 0.75rem; background: var(--bg-surface-2); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.85rem;">
               <option value="all" ${state.filterStatus === 'all' ? 'selected' : ''}>Tất cả trạng thái</option>
-              <option value="due" ${state.filterStatus === 'due' ? 'selected' : ''}>⏰ Đến hạn ôn</option>
+              <option value="due" ${state.filterStatus === 'due' ? 'selected' : ''}>⏰ Đến hạn</option>
               <option value="learning" ${state.filterStatus === 'learning' ? 'selected' : ''}>📖 Đang học</option>
               <option value="mastered" ${state.filterStatus === 'mastered' ? 'selected' : ''}>🏆 Đã thuộc</option>
               <option value="new" ${state.filterStatus === 'new' ? 'selected' : ''}>✨ Thẻ mới</option>
@@ -732,15 +797,14 @@ function renderBrowseView(container) {
           </div>
         </div>
 
-        <!-- Question List -->
-        <div class="browse-table-wrapper">
+        <!-- Question Cards List -->
+        <div style="background: var(--bg-surface-1); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); overflow: hidden;">
   `;
 
   if (filtered.length === 0) {
     html += `
       <div style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary);">
-        <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Không tìm thấy câu hỏi nào phù hợp với bộ lọc</p>
-        <button class="btn btn-secondary" onclick="resetFilters()">Xóa bộ lọc</button>
+        Không tìm thấy câu hỏi phù hợp.
       </div>
     `;
   } else {
@@ -749,30 +813,23 @@ function renderBrowseView(container) {
       const srs = state.srsData.cards[cardKey] || { state: 'new' };
       const isStarred = srs.starred;
 
-      let levelClass = 'tag-beginner';
-      let levelText = 'Cơ bản';
-      if (card.level === 'intermediate') {
-        levelClass = 'tag-intermediate';
-        levelText = 'Trung cấp';
-      } else if (card.level === 'advanced') {
-        levelClass = 'tag-advanced';
-        levelText = 'Nâng cao';
-      }
-
       html += `
-        <div class="question-list-item" onclick="openCardInStudy('${card.topicId || topicId}', ${card.id})">
-          <div class="q-index">#${idx + 1}</div>
-          <div class="q-content">
-            <div class="q-header-meta">
-              <span class="tag tag-category">${card.category || topicCfg.name}</span>
-              ${card.subcategory ? `<span class="tag tag-category">${card.subcategory}</span>` : ''}
-              <span class="tag ${levelClass}">${levelText}</span>
-              ${srs.state === 'mastered' ? `<span class="tag" style="background: var(--color-easy-bg); color: var(--color-easy);">Thành thạo</span>` : ''}
-              ${srs.state === 'learning' ? `<span class="tag" style="background: var(--color-good-bg); color: var(--color-good);">Đang học (${srs.interval}d)</span>` : ''}
+        <div style="border-bottom: 1px solid var(--border-hairline); padding: 1.15rem 1.4rem; cursor: pointer; transition: background 0.15s; display: flex; gap: 1rem; align-items: flex-start;"
+             onmouseover="this.style.background='var(--bg-surface-2)'" onmouseout="this.style.background='transparent'"
+             onclick="openCardInStudy('${card.topicId || topicId}', ${card.id})">
+          <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); width: 32px; padding-top: 0.2rem;">#${idx + 1}</div>
+          <div style="flex: 1;">
+            <div style="display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap;">
+              <span class="chip-tag chip-cat">${card.category || topicCfg.name}</span>
+              ${card.subcategory ? `<span class="chip-tag chip-cat">${card.subcategory}</span>` : ''}
+              ${srs.state === 'mastered' ? `<span class="mini-badge badge-mastered-glow">Đã thuộc</span>` : ''}
+              ${srs.state === 'learning' ? `<span class="mini-badge badge-learning-glow">${srs.interval}d</span>` : ''}
               ${isStarred ? `<span style="color: #fbbf24;">★</span>` : ''}
             </div>
-            <div class="q-title">${card.q}</div>
-            <div class="q-preview">${(card.a || '').replace(/[\*#`]/g, '').substring(0, 160)}...</div>
+            <div style="font-size: 1rem; font-weight: 600; line-height: 1.4; color: var(--text-primary);">${card.q}</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.35rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+              ${(card.a || '').replace(/[\*#`]/g, '').substring(0, 160)}...
+            </div>
           </div>
         </div>
       `;
@@ -787,9 +844,9 @@ function renderBrowseView(container) {
 
   container.innerHTML = html;
 
-  const browseInput = document.getElementById('browse-search');
-  if (browseInput) {
-    browseInput.addEventListener('input', (e) => {
+  const bInput = document.getElementById('browse-search-input');
+  if (bInput) {
+    bInput.addEventListener('input', (e) => {
       state.searchQuery = e.target.value;
       renderBrowseView(container);
     });
@@ -797,16 +854,9 @@ function renderBrowseView(container) {
 }
 
 // User Actions
-function flipCard() {
-  state.isFlipped = true;
+function revealAnswer() {
+  state.isRevealed = true;
   renderApp();
-}
-
-function handleCardBodyClick(e) {
-  if (e.target.closest('a') || e.target.closest('button')) return;
-  if (!state.isFlipped) {
-    flipCard();
-  }
 }
 
 function rateCurrentCard(rating) {
@@ -819,19 +869,19 @@ function rateCurrentCard(rating) {
   SRSEngine.rateCard(cardKey, rating);
 
   if (rating === 1) {
-    // If rated Again, append card to the queue so it reappears before session end
+    // Push failed card to reappear later in the session
     state.studyQueue.push(card);
   }
 
   state.currentCardIndex++;
-  state.isFlipped = false;
+  state.isRevealed = false;
   renderApp();
 }
 
 function prevCard() {
   if (state.currentCardIndex > 0) {
     state.currentCardIndex--;
-    state.isFlipped = false;
+    state.isRevealed = false;
     renderApp();
   }
 }
@@ -839,7 +889,7 @@ function prevCard() {
 function skipCard() {
   if (state.currentCardIndex < state.studyQueue.length - 1) {
     state.currentCardIndex++;
-    state.isFlipped = false;
+    state.isRevealed = false;
     renderApp();
   }
 }
@@ -862,67 +912,272 @@ function openCardInStudy(topicId, cardId) {
   }
   state.currentView = 'study';
   state.currentTopicId = topicId;
-  state.isFlipped = false;
+  state.isRevealed = false;
   renderApp();
 }
 
-function handleLevelFilter(level) {
-  state.filterLevel = level;
-  renderBrowseView(document.getElementById('app'));
+// ==========================================================================
+// 4. COMMAND PALETTE (CTRL + K / SPOTLIGHT SEARCH)
+// ==========================================================================
+function openCommandPalette() {
+  state.cmdPaletteOpen = true;
+  const existing = document.getElementById('cmd-palette-root');
+  if (existing) existing.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'cmd-palette-backdrop';
+  backdrop.id = 'cmd-palette-root';
+  backdrop.onclick = (e) => {
+    if (e.target === backdrop) closeCommandPalette();
+  };
+
+  backdrop.innerHTML = `
+    <div class="cmd-palette-modal">
+      <div class="cmd-search-header">
+        <span style="font-size: 1.1rem; color: var(--text-muted);">🔍</span>
+        <input type="text" id="cmd-input" class="cmd-search-input" placeholder="Tìm kiếm bất kỳ câu hỏi nào trong 758 câu hoặc gõ lệnh..." autofocus>
+        <kbd>ESC</kbd>
+      </div>
+      <div class="cmd-results-list" id="cmd-results"></div>
+      <div class="cmd-footer">
+        <span>Dùng phím <kbd>↑</kbd> <kbd>↓</kbd> để di chuyển</span>
+        <span>Nhấn <kbd>Enter</kbd> để mở</span>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+  const input = document.getElementById('cmd-input');
+  input.focus();
+  input.addEventListener('input', updateCommandResults);
+  input.addEventListener('keydown', handleCommandKeyDown);
+
+  updateCommandResults();
 }
 
-function handleStatusFilter(status) {
-  state.filterStatus = status;
-  renderBrowseView(document.getElementById('app'));
+function closeCommandPalette() {
+  state.cmdPaletteOpen = false;
+  const root = document.getElementById('cmd-palette-root');
+  if (root) root.remove();
 }
 
-function resetFilters() {
-  state.searchQuery = '';
-  state.filterLevel = 'all';
-  state.filterStatus = 'all';
-  renderBrowseView(document.getElementById('app'));
+function updateCommandResults() {
+  const input = document.getElementById('cmd-input');
+  const resultsContainer = document.getElementById('cmd-results');
+  if (!input || !resultsContainer) return;
+
+  const query = input.value.trim().toLowerCase();
+  let items = [];
+
+  if (!query) {
+    // Quick Actions
+    items.push({ type: 'header', label: 'Chuyên đề học tập' });
+    TOPICS_CONFIG.forEach(t => {
+      items.push({
+        type: 'topic',
+        icon: t.icon,
+        title: `Học chuyên đề: ${t.name}`,
+        action: () => { closeCommandPalette(); navigateTo('study', t.id); }
+      });
+    });
+    items.push({ type: 'header', label: 'Tùy chọn hệ thống' });
+    items.push({
+      type: 'action',
+      icon: '🌓',
+      title: 'Đổi giao diện Sáng / Tối',
+      action: () => { toggleTheme(); closeCommandPalette(); }
+    });
+    items.push({
+      type: 'action',
+      icon: '⚙️',
+      title: 'Quản lý / Sao lưu dữ liệu tiến độ (Export/Import)',
+      action: () => { closeCommandPalette(); openDataModal(); }
+    });
+  } else {
+    // Search across questions
+    const matched = state.allCards.filter(c => 
+      (c.q || '').toLowerCase().includes(query) || (c.q_en || '').toLowerCase().includes(query)
+    ).slice(0, 15);
+
+    if (matched.length > 0) {
+      items.push({ type: 'header', label: `Câu hỏi tìm thấy (${matched.length})` });
+      matched.forEach(c => {
+        items.push({
+          type: 'question',
+          icon: '💡',
+          title: c.q,
+          badge: c.category,
+          action: () => {
+            closeCommandPalette();
+            openCardInStudy(c.topicId, c.id);
+          }
+        });
+      });
+    } else {
+      items.push({ type: 'header', label: 'Không tìm thấy câu hỏi phù hợp' });
+    }
+  }
+
+  // Render items
+  let html = '';
+  let selectableIndex = 0;
+  items.forEach((item) => {
+    if (item.type === 'header') {
+      html += `<div class="cmd-group-label">${item.label}</div>`;
+    } else {
+      const isSelected = selectableIndex === state.cmdSelectedIndex;
+      html += `
+        <div class="cmd-item ${isSelected ? 'selected' : ''}" data-idx="${selectableIndex}" onclick="executeCmdItem(${selectableIndex})">
+          <div class="cmd-item-left">
+            <span>${item.icon}</span>
+            <span class="cmd-item-title">${item.title}</span>
+          </div>
+          ${item.badge ? `<span class="chip-tag chip-cat">${item.badge}</span>` : ''}
+        </div>
+      `;
+      selectableIndex++;
+    }
+  });
+
+  resultsContainer.innerHTML = html;
+  state.currentCmdItems = items.filter(i => i.type !== 'header');
+}
+
+function handleCommandKeyDown(e) {
+  const items = state.currentCmdItems || [];
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    state.cmdSelectedIndex = (state.cmdSelectedIndex + 1) % items.length;
+    updateCommandSelection();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    state.cmdSelectedIndex = (state.cmdSelectedIndex - 1 + items.length) % items.length;
+    updateCommandSelection();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    executeCmdItem(state.cmdSelectedIndex);
+  } else if (e.key === 'Escape') {
+    closeCommandPalette();
+  }
+}
+
+function updateCommandSelection() {
+  const domItems = document.querySelectorAll('.cmd-item');
+  domItems.forEach((el, idx) => {
+    if (idx === state.cmdSelectedIndex) el.classList.add('selected');
+    else el.classList.remove('selected');
+  });
+}
+
+function executeCmdItem(index) {
+  const items = state.currentCmdItems || [];
+  if (items[index] && typeof items[index].action === 'function') {
+    items[index].action();
+  }
+}
+
+// ==========================================================================
+// 5. CANVAS CONFETTI CELEBRATION
+// ==========================================================================
+function triggerConfetti() {
+  let canvas = document.getElementById('confetti-canvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'confetti-canvas';
+    document.body.appendChild(canvas);
+  }
+
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const particles = [];
+  const colors = ['#6366f1', '#a855f7', '#ec4899', '#38bdf8', '#10b981', '#f59e0b'];
+
+  for (let i = 0; i < 90; i++) {
+    particles.push({
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      vx: (Math.random() - 0.5) * 16,
+      vy: (Math.random() - 0.5) * 16 - 3,
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      alpha: 1,
+      rotation: Math.random() * 360,
+      vrot: (Math.random() - 0.5) * 10
+    });
+  }
+
+  function renderConfetti() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.25; // gravity
+      p.alpha -= 0.012;
+      p.rotation += p.vrot;
+
+      if (p.alpha > 0) {
+        alive = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        ctx.restore();
+      }
+    });
+
+    if (alive) {
+      requestAnimationFrame(renderConfetti);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.remove();
+    }
+  }
+
+  requestAnimationFrame(renderConfetti);
 }
 
 // Data Management Modal (Export, Import, Reset)
 function openDataModal() {
   const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
+  modal.className = 'cmd-palette-backdrop';
   modal.id = 'data-modal';
 
   modal.innerHTML = `
-    <div class="modal">
-      <div class="modal-header">
-        <h3 class="modal-title">⚙️ Quản lý Tiến Độ & Dữ Liệu</h3>
+    <div class="cmd-palette-modal" style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="font-size: 1.15rem; font-weight: 700;">⚙️ Quản lý Tiến Độ & Sao Lưu</h3>
         <button class="btn-icon" onclick="closeDataModal()">✕</button>
       </div>
-      <div class="modal-body">
-        <div style="margin-bottom: 1.5rem;">
-          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent);">📥 Sao lưu dữ liệu học (Export)</h4>
-          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-            Tải về file JSON chứa toàn bộ lịch sử ôn tập Spaced Repetition của bạn để lưu trữ hoặc chuyển sang máy tính khác.
-          </p>
-          <button class="btn btn-secondary" onclick="exportData()">💾 Tải File Backup JSON</button>
-        </div>
 
-        <div style="margin-bottom: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
-          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: #10b981;">📤 Phục hồi dữ liệu (Import)</h4>
-          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-            Nạp file backup JSON đã lưu trước đó để tiếp tục lộ trình học.
-          </p>
-          <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="handleFileImport(event)">
-          <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">📁 Chọn File JSON Để Khôi Phục</button>
-        </div>
-
-        <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
-          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--color-again);">⚠️ Đặt lại toàn bộ tiến độ (Reset)</h4>
-          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-            Xóa toàn bộ lịch sử ôn tập và đưa 758 câu hỏi về trạng thái "Chưa học". Thao tác này không thể hoàn tác.
-          </p>
-          <button class="btn btn-secondary" style="color: var(--color-again); border-color: var(--color-again);" onclick="resetAllProgress()">🗑️ Xóa Toàn Bộ Tiến Độ</button>
-        </div>
+      <div style="margin-bottom: 1.25rem;">
+        <h4 style="font-size: 0.92rem; color: var(--accent-primary); margin-bottom: 0.4rem;">📥 Xuất dữ liệu (Export Backup)</h4>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.65rem;">
+          Tải về file JSON sao lưu toàn bộ lịch sử và tiến độ ôn tập Spaced Repetition của bạn.
+        </p>
+        <button class="btn btn-secondary" onclick="exportData()">💾 Tải File Backup JSON</button>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeDataModal()">Đóng</button>
+
+      <div style="margin-bottom: 1.25rem; border-top: 1px solid var(--border-hairline); padding-top: 1.1rem;">
+        <h4 style="font-size: 0.92rem; color: #10b981; margin-bottom: 0.4rem;">📤 Khôi phục tiến độ (Import)</h4>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.65rem;">
+          Nạp lại file backup JSON đã lưu trước đây để tiếp tục lộ trình học.
+        </p>
+        <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+        <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">📁 Chọn File JSON Phục Hồi</button>
+      </div>
+
+      <div style="border-top: 1px solid var(--border-hairline); padding-top: 1.1rem;">
+        <h4 style="font-size: 0.92rem; color: var(--color-again); margin-bottom: 0.4rem;">⚠️ Đặt lại toàn bộ tiến độ (Reset)</h4>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.65rem;">
+          Xóa toàn bộ lịch sử ôn tập và đưa 758 câu hỏi về trạng thái chưa học.
+        </p>
+        <button class="btn btn-secondary" style="color: var(--color-again); border-color: rgba(244,63,94,0.3);" onclick="resetAllProgress()">🗑️ Xóa Toàn Bộ Tiến Độ</button>
       </div>
     </div>
   `;
@@ -937,18 +1192,17 @@ function closeDataModal() {
 
 function exportData() {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.srsData, null, 2));
-  const downloadAnchor = document.createElement('a');
-  downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `spaced_repetition_backup_${getTodayStr()}.json`);
-  document.body.appendChild(downloadAnchor);
-  downloadAnchor.click();
-  downloadAnchor.remove();
+  const a = document.createElement('a');
+  a.setAttribute("href", dataStr);
+  a.setAttribute("download", `it_interview_srs_backup_${getTodayStr()}.json`);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function handleFileImport(e) {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = function(evt) {
     try {
@@ -956,11 +1210,11 @@ function handleFileImport(e) {
       if (imported.cards) {
         state.srsData = imported;
         SRSEngine.saveSRS();
-        alert('Khôi phục dữ liệu tiến độ học thành công!');
+        alert('Khôi phục dữ liệu tiến độ thành công!');
         closeDataModal();
         renderApp();
       } else {
-        alert('File không hợp lệ: thiếu cấu trúc dữ liệu thẻ.');
+        alert('File không hợp lệ: thiếu cấu trúc srs.');
       }
     } catch(err) {
       alert('Lỗi đọc file: ' + err.message);
@@ -970,10 +1224,10 @@ function handleFileImport(e) {
 }
 
 function resetAllProgress() {
-  if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử ôn tập và đưa tất cả 758 câu hỏi về trạng thái ban đầu?')) {
+  if (confirm('Bạn có chắc chắn muốn đặt lại toàn bộ tiến độ và xóa lịch sử ôn tập?')) {
     state.srsData = { cards: {}, stats: { reviewsToday: 0, lastStudyDate: getTodayStr(), streak: 0 } };
     SRSEngine.saveSRS();
-    alert('Đã đặt lại tiến độ học tập thành công.');
+    alert('Đã đặt lại tiến độ thành công.');
     closeDataModal();
     renderApp();
   }
@@ -981,13 +1235,25 @@ function resetAllProgress() {
 
 // Global Keyboard Shortcut Listener
 window.addEventListener('keydown', (e) => {
-  // If typing in an input or select, skip shortcuts
+  // Command Palette trigger: Ctrl+K or Cmd+K
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (state.cmdPaletteOpen) closeCommandPalette();
+    else openCommandPalette();
+    return;
+  }
+
+  // If in an input, skip study hotkeys
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
     return;
   }
 
-  // Modal close
+  // Escape handling
   if (e.key === 'Escape') {
+    if (state.cmdPaletteOpen) {
+      closeCommandPalette();
+      return;
+    }
     if (document.getElementById('data-modal')) {
       closeDataModal();
       return;
@@ -998,14 +1264,14 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-  // Flashcard view shortcuts
+  // Flashcard View Shortcuts
   if (state.currentView === 'study') {
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
-      if (!state.isFlipped) {
-        flipCard();
+      if (!state.isRevealed) {
+        revealAnswer();
       }
-    } else if (state.isFlipped) {
+    } else if (state.isRevealed) {
       if (e.key === '1') rateCurrentCard(1);
       else if (e.key === '2') rateCurrentCard(2);
       else if (e.key === '3') rateCurrentCard(3);
