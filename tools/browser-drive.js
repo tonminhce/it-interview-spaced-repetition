@@ -16,7 +16,19 @@ const os = require('os');
 
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const ROOT = path.resolve(__dirname, '..');
-const BASE = 'file:///' + ROOT.replace(/\\/g, '/') + '/index.html';
+
+/**
+ * Resolve the URL of the app's index page.
+ * APP_BASE may be a site root (http://127.0.0.1:8000) or a full document URL
+ * (http://127.0.0.1:8000/index.html); both are accepted.
+ */
+function resolveBase(raw) {
+  if (!raw) return 'file:///' + ROOT.replace(/\\/g, '/') + '/index.html';
+  const trimmed = raw.replace(/\/+$/, '');
+  return /\.html?$/i.test(trimmed) ? trimmed : trimmed + '/index.html';
+}
+
+const BASE = resolveBase(process.env.APP_BASE);
 const PORT = 9333;
 const OUT = path.join(os.tmpdir(), 'it-interview-shots');
 
@@ -137,6 +149,29 @@ async function main() {
     };
 
     const scenarios = {
+      async diag() {
+        const probe = async (label) => {
+          const s = await evaluate(`({
+            url: location.href,
+            hash: location.hash,
+            view: window.Store && Store.state.view,
+            topic: window.Store && Store.state.topicId,
+            hasTrigger: !!document.getElementById('reveal-trigger'),
+            appHtmlLen: (document.getElementById('app')||{innerHTML:''}).innerHTML.length,
+            readyState: document.readyState
+          })`);
+          console.log('  ' + label + ': ' + JSON.stringify(s));
+        };
+
+        await probe('initial');
+        await goto('#/home');
+        await probe('after goto #/home');
+        await goto('#/study/java');
+        await probe('after goto #/study/java');
+        await sleep(500);
+        await probe('after 500ms settle');
+      },
+
       async tour() {
         await goto('#/home');
         await shot('01-home');
