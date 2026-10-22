@@ -1,0 +1,318 @@
+/* ==========================================================================
+   PROSE — long-form answer typography
+
+   The answers in this deck are dense technical prose: 200–2 000 characters
+   with headings, comparison tables, bullet lists and runnable snippets. This
+   sheet treats them like a documentation page rather than chat output.
+   ========================================================================== */
+
+.prose {
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--text-primary);
+  max-width: var(--reading-max);
+  overflow-wrap: break-word;
+}
+
+.prose > *:first-child {
+  margin-top: 0;
+}
+
+.prose > *:last-child {
+  margin-bottom: 0;
+}
+
+.prose p {
+  margin-block: 0 var(--space-4);
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  margin-block: var(--space-6) var(--space-3);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.35;
+}
+
+.prose h1 { font-size: var(--text-xl); }
+.prose h2 { font-size: var(--text-lg); }
+.prose h3 { font-size: var(--text-md); }
+.prose h4 { font-size: var(--text-base); color: var(--text-secondary); }
+
+.prose strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose ul,
+.prose ol {
+  margin-block: 0 var(--space-4);
+  padding-left: var(--space-5);
+}
+
+.prose li {
+  margin-bottom: var(--space-2);
+  padding-left: 2px;
+}
+
+.prose li::marker {
+  color: var(--text-tertiary);
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-block: var(--space-2) 0;
+}
+
+.prose hr {
+  height: 1px;
+  margin-block: var(--space-6);
+  border: none;
+  background: var(--border-hairline);
+}
+
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-border);
+  text-underline-offset: 3px;
+}
+
+.prose a:hover {
+  text-decoration-color: var(--accent);
+}
+
+/* Inline code ------------------------------------------------------------- */
+
+.prose code {
+  font-size: 0.875em;
+  padding: 0.1em 0.36em;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface-inset);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Code blocks ------------------------------------------------------------- */
+
+.code-block {
+  margin-block: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-surface-inset);
+  overflow: hidden;
+}
+
+.code-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  background: var(--bg-surface-raised);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.code-block__lang {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.code-block__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  transition: background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.code-block__copy:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.code-block__copy.is-done {
+  color: var(--success);
+}
+
+.code-block__copy.is-active {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.code-block pre {
+  margin: 0;
+  padding: var(--space-4);
+  overflow-x: auto;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text-primary);
+  tab-size: 2;
+}
+
+.code-block pre code {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+  color: inherit;
+}
+
+/* Wrapping is opt-in: code normally scrolls rather than reflowing. */
+.code-block.is-wrapped pre {
+  overflow-x: hidden;
+}
+
+.code-block.is-wrapped pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Tables ------------------------------------------------------------------ */
+
+.prose .table-wrap {
+  margin-block: var(--space-4);
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.prose thead {
+  background: var(--bg-surface-inset);
+}
+
+.prose th {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.prose td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-hairline);
+  vertical-align: top;
+}
+
+.prose tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.prose tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--bg-surface-inset) 45%, transparent);
+}
+
+.prose td code {
+  white-space: nowrap;
+}
+
+/* Callouts ---------------------------------------------------------------- */
+
+.prose blockquote {
+  margin-block: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--accent-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.prose blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.prose blockquote.is-warning {
+  border-left-color: var(--warning);
+  background: var(--warning-subtle);
+}
+
+/* References -------------------------------------------------------------- */
+
+.references {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.references__title {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.references__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.references__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-surface-inset);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  transition: border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.references__link:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* Empty answer ------------------------------------------------------------ */
+
+.answer-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-subtle);
+  background: var(--bg-surface-inset);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  line-height: var(--leading-snug);
+}
+
+.answer-missing svg {
+  color: var(--warning);
+  margin-top: 1px;
+}

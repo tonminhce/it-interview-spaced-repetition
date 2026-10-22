@@ -1,0 +1,300 @@
+/* ==========================================================================
+   DESIGN TOKENS
+   --------------------------------------------------------------------------
+   Every colour, size, duration and easing used by the interface is declared
+   here. Components reference semantic tokens only, so a theme switch is a
+   single block swap and nothing in the component layer needs to change.
+
+   Palette philosophy:
+     - The base is achromatic. Colour is reserved for meaning (review state,
+       topic identity, focus) instead of decoration.
+     - Accent glows are gone. Depth comes from hairline borders and a small
+       number of deliberate shadows reserved for floating surfaces.
+   ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------------
+     Typography
+     --------------------------------------------------------------------- */
+  --font-sans: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono',
+    Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem;  /* 11px */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.8125rem;   /* 13px */
+  --text-base: 0.875rem;  /* 14px */
+  --text-md: 0.9375rem;   /* 15px */
+  --text-lg: 1.0625rem;   /* 17px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.9375rem;  /* 31px */
+  --text-4xl: 2.5rem;     /* 40px */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.4;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+
+  /* Optical tightening — large text needs negative tracking to look right. */
+  --tracking-tight: -0.022em;
+  --tracking-tighter: -0.032em;
+  --tracking-normal: -0.011em;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.07em;
+
+  /* ---------------------------------------------------------------------
+     Spacing (4px base scale)
+     --------------------------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* ---------------------------------------------------------------------
+     Radii
+     --------------------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  /* ---------------------------------------------------------------------
+     Motion
+
+     Enter is always slower than exit: an element that appears should be
+     given time to be read, while one that leaves should get out of the way.
+     --------------------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --dur-instant: 90ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+  --dur-slower: 420ms;
+
+  /* Disclosure open/close use their own pair. */
+  --dur-expand: 320ms;
+  --dur-collapse: 200ms;
+
+  /* ---------------------------------------------------------------------
+     Layout
+     --------------------------------------------------------------------- */
+  --header-height: 56px;
+  --content-max: 1180px;
+  --reading-max: 74ch;
+  --palette-max-width: 660px;
+
+  /* ---------------------------------------------------------------------
+     Elevation — reserved for genuinely floating surfaces
+     --------------------------------------------------------------------- */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-sm: 0 2px 6px -1px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 8px 24px -6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 20px 48px -12px rgba(0, 0, 0, 0.46);
+  --shadow-xl: 0 40px 80px -20px rgba(0, 0, 0, 0.6);
+
+  /* ---------------------------------------------------------------------
+     Layered surfaces
+
+     A 1px inner highlight along the top edge of a raised surface is what
+     gives Linear-style panels their "lit from above" quality. It is applied
+     in addition to the hairline border, never instead of it.
+     --------------------------------------------------------------------- */
+  --ring-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --ring-highlight-strong: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --shadow-popover: rgba(0, 0, 0, 0.15) 0 4px 12px, rgba(0, 0, 0, 0.2) 0 8px 24px,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --shadow-modal: rgba(0, 0, 0, 0.2) 0 16px 48px, rgba(0, 0, 0, 0.3) 0 32px 72px,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+
+  /* ---------------------------------------------------------------------
+     Z-index scale
+     --------------------------------------------------------------------- */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-header: 200;
+  --z-overlay: 300;
+  --z-palette: 400;
+  --z-modal: 500;
+  --z-toast: 600;
+
+  /* ---------------------------------------------------------------------
+     Dark theme (default)
+     --------------------------------------------------------------------- */
+  color-scheme: dark;
+
+  --bg-canvas: #0a0a0c;
+  --bg-surface: #101013;
+  --bg-surface-raised: #16161a;
+  --bg-surface-overlay: #1a1a1f;
+  --bg-surface-inset: #0d0d10;
+  --bg-surface-hover: rgba(255, 255, 255, 0.04);
+  --bg-surface-active: rgba(255, 255, 255, 0.07);
+
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --border-subtle: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --text-primary: #ededf0;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-disabled: #52525b;
+
+  --accent: #6d6af5;
+  --accent-hover: #807df8;
+  --accent-active: #5a57e8;
+  --accent-fg: #ffffff;
+  --accent-subtle: rgba(109, 106, 245, 0.14);
+  --accent-border: rgba(109, 106, 245, 0.32);
+
+  --success: #34d399;
+  --success-subtle: rgba(52, 211, 153, 0.13);
+  --success-border: rgba(52, 211, 153, 0.28);
+  --warning: #fbbf24;
+  --warning-subtle: rgba(251, 191, 36, 0.13);
+  --warning-border: rgba(251, 191, 36, 0.28);
+  --danger: #fb7185;
+  --danger-subtle: rgba(251, 113, 133, 0.13);
+  --danger-border: rgba(251, 113, 133, 0.28);
+  --info: #60a5fa;
+  --info-subtle: rgba(96, 165, 250, 0.13);
+  --info-border: rgba(96, 165, 250, 0.28);
+
+  /* Review ratings (Anki-style 4-button scale) */
+  --rate-again: #fb7185;
+  --rate-again-subtle: rgba(251, 113, 133, 0.1);
+  --rate-again-border: rgba(251, 113, 133, 0.26);
+  --rate-hard: #fbbf24;
+  --rate-hard-subtle: rgba(251, 191, 36, 0.1);
+  --rate-hard-border: rgba(251, 191, 36, 0.26);
+  --rate-good: #60a5fa;
+  --rate-good-subtle: rgba(96, 165, 250, 0.1);
+  --rate-good-border: rgba(96, 165, 250, 0.26);
+  --rate-easy: #34d399;
+  --rate-easy-subtle: rgba(52, 211, 153, 0.1);
+  --rate-easy-border: rgba(52, 211, 153, 0.26);
+
+  --topic-saturation: 68%;
+  --topic-lightness: 62%;
+
+  --backdrop: rgba(0, 0, 0, 0.5);
+  --backdrop-blur: 3px;
+
+  --mark-bg: rgba(109, 106, 245, 0.28);
+  --mark-fg: #e6e4ff;
+}
+
+/* -------------------------------------------------------------------------
+   Light theme
+   ------------------------------------------------------------------------- */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-canvas: #fcfcfd;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #ffffff;
+  --bg-surface-overlay: #ffffff;
+  --bg-surface-inset: #f6f6f8;
+  --bg-surface-hover: rgba(0, 0, 0, 0.035);
+  --bg-surface-active: rgba(0, 0, 0, 0.06);
+
+  --border-hairline: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.13);
+  --border-strong: rgba(0, 0, 0, 0.22);
+
+  --text-primary: #101014;
+  --text-secondary: #52525c;
+  --text-tertiary: #85858f;
+  --text-disabled: #b4b4bd;
+
+  --accent: #5b57d8;
+  --accent-hover: #4a46c9;
+  --accent-active: #3f3bb8;
+  --accent-fg: #ffffff;
+  --accent-subtle: rgba(91, 87, 216, 0.09);
+  --accent-border: rgba(91, 87, 216, 0.26);
+
+  --success: #059669;
+  --success-subtle: rgba(5, 150, 105, 0.1);
+  --success-border: rgba(5, 150, 105, 0.24);
+  --warning: #b45309;
+  --warning-subtle: rgba(180, 83, 9, 0.1);
+  --warning-border: rgba(180, 83, 9, 0.24);
+  --danger: #e11d48;
+  --danger-subtle: rgba(225, 29, 72, 0.09);
+  --danger-border: rgba(225, 29, 72, 0.24);
+  --info: #2563eb;
+  --info-subtle: rgba(37, 99, 235, 0.09);
+  --info-border: rgba(37, 99, 235, 0.24);
+
+  --rate-again: #e11d48;
+  --rate-again-subtle: rgba(225, 29, 72, 0.08);
+  --rate-again-border: rgba(225, 29, 72, 0.24);
+  --rate-hard: #b45309;
+  --rate-hard-subtle: rgba(180, 83, 9, 0.08);
+  --rate-hard-border: rgba(180, 83, 9, 0.24);
+  --rate-good: #2563eb;
+  --rate-good-subtle: rgba(37, 99, 235, 0.08);
+  --rate-good-border: rgba(37, 99, 235, 0.24);
+  --rate-easy: #059669;
+  --rate-easy-subtle: rgba(5, 150, 105, 0.08);
+  --rate-easy-border: rgba(5, 150, 105, 0.24);
+
+  --topic-saturation: 62%;
+  --topic-lightness: 42%;
+
+  --backdrop: rgba(0, 0, 0, 0.25);
+  --backdrop-blur: 2px;
+
+  --shadow-xs: 0 1px 2px rgba(16, 16, 24, 0.06);
+  --shadow-sm: 0 2px 6px -1px rgba(16, 16, 24, 0.08);
+  --shadow-md: 0 8px 24px -6px rgba(16, 16, 24, 0.12);
+  --shadow-lg: 0 20px 48px -12px rgba(16, 16, 24, 0.18);
+  --shadow-xl: 0 40px 80px -20px rgba(16, 16, 24, 0.24);
+
+  --ring-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --ring-highlight-strong: inset 0 1px 0 #fff;
+  --shadow-popover: rgba(28, 25, 23, 0.08) 0 4px 12px, rgba(28, 25, 23, 0.1) 0 8px 24px,
+    inset 0 0 0 1px rgba(28, 25, 23, 0.05);
+  --shadow-modal: rgba(28, 25, 23, 0.12) 0 16px 48px, rgba(28, 25, 23, 0.16) 0 32px 72px,
+    inset 0 0 0 1px rgba(28, 25, 23, 0.06);
+
+  --mark-bg: rgba(91, 87, 216, 0.16);
+  --mark-fg: #302d80;
+}
+
+/* -------------------------------------------------------------------------
+   Reduced motion
+
+   Centralised here so there is a single place to reason about it. Movement is
+   removed; opacity fades are kept, because a fade is not a vestibular
+   trigger and removing it would make state changes feel abrupt.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0.01ms;
+    --dur-fast: 0.01ms;
+    --dur-base: 0.01ms;
+    --dur-slow: 0.01ms;
+    --dur-slower: 0.01ms;
+    --dur-expand: 0.01ms;
+    --dur-collapse: 0.01ms;
+  }
+}

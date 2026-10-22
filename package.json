@@ -1,0 +1,14 @@
+{
+  "name": "it-interview-spaced-repetition",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Ôn tập 758 câu hỏi phỏng vấn IT bằng Spaced Repetition (SM-2) — vanilla HTML/CSS/JS, không cần build.",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "serve": "npx --yes serve .",
+    "verify": "bash tools/verify-views.sh",
+    "shots": "node tools/browser-drive.js tour",
+    "test": "bash tools/verify-views.sh"
+  },
+  "license": "MIT"
+}
