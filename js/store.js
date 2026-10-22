@@ -29,8 +29,25 @@
     revealed: false,
     language: 'vi',
     theme: 'dark',
-    sessionStats: { again: 0, hard: 0, good: 0, easy: 0, reviewed: 0 }
+    sessionStats: { again: 0, hard: 0, good: 0, easy: 0, reviewed: 0, hinted: 0 },
+    hintShown: false,
+    // Pomodoro-style focus timer. `roundMinutes` of 0 means no limit.
+    timer: {
+      mode: 'focus',       // 'focus' | 'break'
+      roundMinutes: 25,
+      breakMinutes: 7,
+      remaining: 25 * 60,
+      running: true
+    }
   };
+
+  /** Format a number of seconds as MM:SS. */
+  function formatClock(seconds) {
+    var s = Math.max(0, Math.round(seconds));
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r;
+  }
 
   // ---------------------------------------------------------------------------
   // Persistence
@@ -186,19 +203,15 @@
 
     Object.keys(raw).forEach(function (topicKey) {
       var topic = raw[topicKey];
-      state.topicMap[topicKey] = topic;
       var cfg = topicById(topicKey);
-      state.topics.push({
-        id: topicKey,
-        name: topic.name,
-        icon: cfg.icon,
-        hue: cfg.hue,
-        desc: cfg.desc,
-        total: topic.questions ? topic.questions.length : 0
-      });
+
+      // Normalise every question into a card that knows which topic it
+      // belongs to. Views must never touch the raw question objects: they
+      // carry no `topicId`, which silently produced `undefined` ids.
+      var normalized = [];
       if (topic.questions && Array.isArray(topic.questions)) {
         topic.questions.forEach(function (q) {
-          state.allCards.push({
+          var card = {
             id: q.id,
             topicId: topicKey,
             topicName: topic.name,
@@ -211,9 +224,27 @@
             a_en: q.a_en || '',
             references: q.references || [],
             isFull: q.is_full !== false
-          });
+          };
+          normalized.push(card);
+          state.allCards.push(card);
         });
       }
+
+      state.topicMap[topicKey] = {
+        name: topic.name,
+        slug: topic.slug || topicKey,
+        total: normalized.length,
+        questions: normalized
+      };
+
+      state.topics.push({
+        id: topicKey,
+        name: topic.name,
+        icon: cfg.icon,
+        hue: cfg.hue,
+        desc: cfg.desc,
+        total: normalized.length
+      });
     });
 
     loadSRS();
@@ -396,11 +427,16 @@
   // Study queue
   // ---------------------------------------------------------------------------
 
+  /** The normalised cards belonging to a topic (all cards for 'all'). */
+  function cardsFor(topicId) {
+    if (topicId === 'all') return state.allCards;
+    var topic = state.topicMap[topicId];
+    return topic ? topic.questions : [];
+  }
+
   /** Build a review queue: due cards first, then new cards, then the rest. */
   function buildQueue(topicId) {
-    var cards = topicId === 'all'
-      ? state.allCards.slice()
-      : (state.topicMap[topicId] ? state.topicMap[topicId].questions.slice() : []);
+    var cards = cardsFor(topicId).slice();
     var today = U.todayStr();
 
     function bucket(card) {
@@ -433,6 +469,8 @@
     globalStats: globalStats,
     recentHistory: recentHistory,
     buildQueue: buildQueue,
+    cardsFor: cardsFor,
+    formatClock: formatClock,
     STORAGE_KEY: STORAGE_KEY
   };
 })(window);

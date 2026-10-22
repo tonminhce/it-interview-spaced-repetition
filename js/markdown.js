@@ -134,5 +134,51 @@
       .replace(/\n/g, '<br>');
   }
 
-  global.Markdown = { render: render, labelFor: labelFor };
+  /**
+   * Extract a hint from an answer: the opening sentence or two, with the
+   * markdown syntax stripped.
+   *
+   * A good hint narrows the search space; a bad hint is the answer in
+   * disguise. This returns only enough of the answer to orient the learner
+   * towards the right idea, never the whole thing.
+   */
+  function extractHint(markdown) {
+    if (!markdown) return '';
+
+    // Only the first block of prose — headings and code blocks make poor hints.
+    var block = String(markdown).split(/\n\s*\n/)[0] || '';
+
+    var text = block
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/^\s*>\s?/gm, '')
+      .replace(/^\s*\|.*\|\s*$/gm, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!text) return '';
+
+    // One sentence is the hint; a second is added only if the first was too
+    // short to be worth showing. A hint that hands over the whole paragraph
+    // is the answer in disguise.
+    var sentences = text.match(/[^.!?…]+[.!?…]+(?:\s|$)|[^.!?…]+$/g) || [text];
+    var hint = '';
+    for (var i = 0; i < sentences.length; i++) {
+      hint += (hint ? ' ' : '') + sentences[i].trim();
+      if (hint.length >= 45) break;
+    }
+    hint = hint.trim();
+
+    if (!hint) return text.slice(0, 200);
+    if (hint.length > 280) hint = hint.slice(0, 280).trim() + '…';
+    return hint;
+  }
+
+  global.Markdown = { render: render, labelFor: labelFor, extractHint: extractHint };
 })(window);

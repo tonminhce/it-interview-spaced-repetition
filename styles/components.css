@@ -737,13 +737,39 @@
   margin-bottom: var(--space-3);
 }
 
+/* Break screen ------------------------------------------------------------ */
+
+.break-modal {
+  max-width: 420px;
+}
+
+.break-modal__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+
+.break-clock {
+  font-family: var(--font-mono);
+  font-size: var(--text-4xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  color: var(--text-primary);
+  margin-block: var(--space-2);
+}
+
 /* --------------------------------------------------------------------------
    Toast
    -------------------------------------------------------------------------- */
 
 .toast-host {
   position: fixed;
-  bottom: var(--space-6);
+  bottom: var(--toast-offset, var(--space-6));
   left: 50%;
   transform: translateX(-50%);
   z-index: var(--z-toast);
@@ -751,6 +777,19 @@
   flex-direction: column;
   gap: var(--space-2);
   pointer-events: none;
+  transition: bottom var(--dur-base) var(--ease-out);
+}
+
+/* The study view docks its rating buttons to the bottom of the screen, so
+   toasts have to move up or they cover the very buttons they talk about. */
+body[data-view='study'] {
+  --toast-offset: 204px;
+}
+
+@media (max-width: 720px) {
+  body[data-view='study'] {
+    --toast-offset: 172px;
+  }
 }
 
 .toast {

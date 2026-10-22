@@ -45,10 +45,11 @@
     state.topicId = topicId || 'all';
     state.cardIndex = 0;
     state.revealed = false;
+    state.hintShown = false;
 
     if (view === 'study') {
       state.queue = Store.buildQueue(state.topicId);
-      state.sessionStats = { again: 0, hard: 0, good: 0, easy: 0, reviewed: 0 };
+      state.sessionStats = { again: 0, hard: 0, good: 0, easy: 0, reviewed: 0, hinted: 0 };
     }
 
     if (view === 'browse') {
@@ -72,6 +73,7 @@
     state.view = 'study';
     state.topicId = topicId;
     state.revealed = !!reveal;
+    state.hintShown = false;
 
     var queue = Store.buildQueue(topicId);
     var idx = -1;
@@ -84,7 +86,7 @@
     }
     state.queue = queue;
     state.cardIndex = 0;
-    state.sessionStats = { again: 0, hard: 0, good: 0, easy: 0, reviewed: 0 };
+    state.sessionStats = { again: 0, hard: 0, good: 0, easy: 0, reviewed: 0, hinted: 0 };
 
     syncHash('study', topicId);
     render();
@@ -106,6 +108,7 @@
   /** Reflect the current view in the header. */
   function updateChrome() {
     var view = Store.state.view;
+    document.body.setAttribute('data-view', view);
     var brand = document.querySelector('.brand__tag');
     if (brand) {
       brand.textContent = view === 'home'
@@ -290,6 +293,92 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Focus timer
+  //
+  // Pomodoro-style rounds: a fixed stretch of focused study, then a break.
+  // The timer only advances while the learner is actually in a study view.
+  // ---------------------------------------------------------------------------
+
+  var timerInterval = null;
+  var breakInterval = null;
+
+  function startTimer() {
+    if (timerInterval) return;
+    timerInterval = setInterval(function () {
+      var timer = Store.state.timer;
+      if (!timer.running || timer.mode !== 'focus') return;
+      if (Store.state.view !== 'study') return;
+      if (!timer.roundMinutes) return;
+
+      timer.remaining--;
+      if (timer.remaining <= 0) {
+        timer.remaining = 0;
+        beginBreak();
+      }
+      if (global.StudyView.updateTimer) global.StudyView.updateTimer();
+    }, 1000);
+  }
+
+  function beginBreak() {
+    var timer = Store.state.timer;
+    timer.mode = 'break';
+    timer.remaining = timer.breakMinutes * 60;
+    openBreakOverlay();
+  }
+
+  function endBreak() {
+    var timer = Store.state.timer;
+    timer.mode = 'focus';
+    timer.remaining = timer.roundMinutes ? timer.roundMinutes * 60 : 0;
+    timer.running = true;
+    closeBreakOverlay();
+    if (global.StudyView.updateTimer) global.StudyView.updateTimer();
+  }
+
+  function openBreakOverlay() {
+    if (document.getElementById('break-modal')) return;
+
+    var backdrop = U.el('div', { class: 'modal-backdrop', id: 'break-modal' });
+    backdrop.innerHTML =
+      '<div class="modal break-modal" role="dialog" aria-modal="true" aria-labelledby="break-title">' +
+        '<div class="break-modal__body">' +
+          '<div class="session-done__badge">' + Icons.get('clock', { size: 24 }) + '</div>' +
+          '<h2 class="modal__title" id="break-title">Đã đến giờ nghỉ</h2>' +
+          '<p class="modal__section-text">' +
+            'Bạn đã ôn liên tục ' + Store.state.timer.roundMinutes + ' phút. ' +
+            'Đứng dậy, uống nước và để đầu óc nghỉ — các phiên ngắn xen kẽ gián ngắt ôn tập ' +
+            'hiệu quả hơn một phiên dài liên tục.' +
+          '</p>' +
+          '<div class="break-clock" id="break-clock">' +
+            Store.formatClock(Store.state.timer.remaining) + '</div>' +
+          '<button class="btn btn--primary" data-break="resume">Bắt đầu phiên mới</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', function (e) {
+      if (e.target.closest('[data-break="resume"]')) endBreak();
+    });
+
+    if (breakInterval) clearInterval(breakInterval);
+    breakInterval = setInterval(function () {
+      var timer = Store.state.timer;
+      if (timer.mode !== 'break') { clearInterval(breakInterval); breakInterval = null; return; }
+      timer.remaining--;
+      var clock = document.getElementById('break-clock');
+      if (clock) clock.textContent = Store.formatClock(timer.remaining);
+      if (timer.remaining <= 0) endBreak();
+    }, 1000);
+  }
+
+  function closeBreakOverlay() {
+    var modal = document.getElementById('break-modal');
+    if (modal) modal.remove();
+    if (breakInterval) { clearInterval(breakInterval); breakInterval = null; }
+  }
+
+  // ---------------------------------------------------------------------------
   // Global keyboard shortcuts
   // ---------------------------------------------------------------------------
 
@@ -339,6 +428,7 @@
       var key = e.key.toLowerCase();
       if (key === 's') { e.preventDefault(); global.StudyView.toggleStar(app); return; }
       if (key === 'l') { e.preventDefault(); global.StudyView.toggleLanguage(app); return; }
+      if (key === 'h') { e.preventDefault(); global.StudyView.showHint(app); return; }
 
       if (e.key === 'ArrowLeft') { e.preventDefault(); global.StudyView.go(-1, app); return; }
       if (e.key === 'ArrowRight') { e.preventDefault(); global.StudyView.go(1, app); return; }
@@ -398,6 +488,26 @@
 
     document.addEventListener('keydown', onKeyDown);
 
+    // One delegated click handler for the whole app. Registering a listener
+    // per render would stack them up on the persistent #app element, and a
+    // single click would then fire the action several times — which
+    // double-counted review ratings.
+    app.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-action]') : null;
+      if (!btn) return;
+
+      var view = Store.state.view;
+      if (view === 'home' && global.HomeView.handleClick) global.HomeView.handleClick(e, btn);
+      else if (view === 'study' && global.StudyView.handleClick) global.StudyView.handleClick(e, btn);
+      else if (view === 'browse' && global.BrowseView.handleClick) global.BrowseView.handleClick(e, btn);
+    });
+
+    app.addEventListener('change', function (e) {
+      if (e.target && e.target.id === 'timer-length' && global.StudyView.setRoundLength) {
+        global.StudyView.setRoundLength(parseInt(e.target.value, 10));
+      }
+    });
+
     global.addEventListener('hashchange', function () {
       var route = parseHash();
       if (route.view !== Store.state.view || route.topicId !== Store.state.topicId) {
@@ -411,6 +521,8 @@
 
     // Build the search index while the user reads the dashboard.
     global.Palette.warmIndex();
+
+    startTimer();
   }
 
   function fallbackCopy(text, done) {

@@ -15,6 +15,8 @@
   var U = global.U;
   var Store = global.Store;
   var Icons = global.Icons;
+  var app = document.getElementById('app');
+  var stickyObserver = null;
 
   var LEVELS = {
     beginner: { label: 'Cơ bản', cls: 'chip--success' },
@@ -72,6 +74,21 @@
               '<span class="study-counter" id="study-counter"></span>' +
             '</div>' +
             '<div class="study-bar__right">' +
+              '<div class="session-timer">' +
+                '<button class="icon-btn" data-action="timer-toggle" aria-label="Tạm dừng bộ đếm">' +
+                  Icons.get(Store.state.timer.running ? 'pause' : 'play', { size: 14 }) +
+                '</button>' +
+                '<span class="session-timer__clock" id="timer-clock">' +
+                  (Store.state.timer.roundMinutes === 0 ? '∞' : Store.formatClock(Store.state.timer.remaining)) +
+                '</span>' +
+                '<select class="select select--timer" id="timer-length" aria-label="Độ dài phiên ôn tập">' +
+                  [10, 25, 45, 0].map(function (m) {
+                    return '<option value="' + m + '"' +
+                      (Store.state.timer.roundMinutes === m ? ' selected' : '') + '>' +
+                      (m === 0 ? 'Không giới hạn' : m + ' phút') + '</option>';
+                  }).join('') +
+                '</select>' +
+              '</div>' +
               '<div class="segmented" role="group" aria-label="Ngôn ngữ">' +
                 '<button class="segmented__btn" data-action="lang" data-lang="vi">VI</button>' +
                 '<button class="segmented__btn" data-action="lang" data-lang="en">EN</button>' +
@@ -93,7 +110,6 @@
     // Applies the disclosure state in both directions: when arriving from
     // search the answer is already open, otherwise the region stays inert.
     setRevealed(Store.state.revealed, container);
-    bindStudy(container);
   }
 
   function renderCard(container) {
@@ -133,12 +149,15 @@
               ? '<p class="flashcard__question-en" id="card-question-en" lang="en">' + U.escapeHtml(questionEn) + '</p>'
               : '') +
           '</div>' +
-          '<button class="reveal-trigger" id="reveal-trigger" aria-expanded="false" aria-controls="answer-region">' +
+          '<button class="reveal-trigger" id="reveal-trigger" data-action="toggle-reveal" ' +
+            'aria-expanded="false" aria-controls="answer-region">' +
             '<span class="reveal-trigger__icon">' + Icons.get('chevronDown', { size: 14 }) + '</span>' +
             '<span id="reveal-label">Xem đáp án</span>' +
             '<span class="reveal-trigger__keys" aria-hidden="true"><span class="kbd">Space</span></span>' +
           '</button>' +
         '</div>' +
+
+        '<div id="hint-slot"></div>' +
 
         '<div class="reveal" id="answer-region">' +
           '<div class="reveal__inner">' +
@@ -157,6 +176,9 @@
     renderDock(container);
     updateProgress(container);
     bindStickyBar(container);
+
+    // A hint belongs to a specific card, so it is restored with it.
+    if (Store.state.hintShown) showHint(container, true);
   }
 
   function renderAnswer(answer) {
@@ -194,19 +216,30 @@
     if (!card) return;
 
     var revealed = Store.state.revealed;
+    var hinted = Store.state.hintShown;
     var record = Store.getRecord(currentKey(card));
     var intervals = Store.previewIntervals(record);
 
     var revealPanel =
       '<div class="dock-panel is-active" data-panel="reveal">' +
-        '<button class="btn btn--primary btn--lg" style="width:100%" data-action="reveal">' +
-          Icons.get('play', { size: 14 }) + 'Xem lời giải chi tiết' +
-          '<span class="kbd" style="margin-left:auto" aria-hidden="true">Space</span>' +
-        '</button>' +
+        '<div class="dock-row">' +
+          '<button class="btn btn--primary btn--lg dock-row__main" data-action="reveal">' +
+            Icons.get('play', { size: 14 }) + 'Xem lời giải chi tiết' +
+            '<span class="kbd" aria-hidden="true">Space</span>' +
+          '</button>' +
+          '<button class="btn btn--secondary btn--lg" data-action="hint"' + (hinted ? ' disabled' : '') + '>' +
+            Icons.get('lightbulb', { size: 14 }) + (hinted ? 'Đã xem gợi ý' : 'Gợi ý') +
+            (hinted ? '' : '<span class="kbd" aria-hidden="true">H</span>') +
+          '</button>' +
+        '</div>' +
       '</div>';
 
     var ratePanel =
       '<div class="dock-panel is-active" data-panel="rate">' +
+        (hinted
+          ? '<div class="dock-note">' + Icons.get('lightbulb', { size: 12 }) +
+            'Bạn đã xem gợi ý, nên "Nhớ được" sẽ được tính là "Nhớ một phần".</div>'
+          : '') +
         '<div class="rating-grid">' +
           RATINGS.map(function (r) {
             return '<button class="rating-btn ' + r.cls + '" data-action="rate" data-rating="' + r.value + '">' +
@@ -222,6 +255,7 @@
       '<div class="dock-foot">' +
         '<div class="dock-foot__keys" aria-hidden="true">' +
           '<span class="kbd">Space</span><span>mở đáp án</span>' +
+          '<span class="kbd">H</span><span>gợi ý</span>' +
           '<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span><span class="kbd">4</span><span>đánh giá</span>' +
           '<span class="kbd">S</span><span>sao</span>' +
           '<span class="kbd">L</span><span>ngôn ngữ</span>' +
@@ -251,15 +285,22 @@
     var bar = container.querySelector('#flashcard-qbar');
     if (!bar) return;
 
+    // The observer holds a reference to the card it watches; without
+    // disconnecting, every card rendered would leak one.
+    if (stickyObserver) {
+      stickyObserver.disconnect();
+      stickyObserver = null;
+    }
+
     var sentinel = document.createElement('div');
     sentinel.style.cssText = 'position:absolute;height:1px;width:1px;pointer-events:none;';
     bar.parentNode.insertBefore(sentinel, bar);
 
     if (global.IntersectionObserver) {
-      var observer = new IntersectionObserver(function (entries) {
+      stickyObserver = new IntersectionObserver(function (entries) {
         bar.classList.toggle('is-stuck', !entries[0].isIntersecting);
-      }, { rootMargin: '-' + (56 + 8) + 'px 0px 0px 0px', threshold: 0 });
-      observer.observe(sentinel);
+      }, { rootMargin: '-64px 0px 0px 0px', threshold: 0 });
+      stickyObserver.observe(sentinel);
     }
   }
 
@@ -300,6 +341,12 @@
                 '<span class="session-done__stat-value">' + stats.streak + '</span>' +
                 '<span class="session-done__stat-label">ngày liên tục</span>' +
               '</div>' +
+              (session.hinted
+                ? '<div class="session-done__stat">' +
+                    '<span class="session-done__stat-value">' + session.hinted + '</span>' +
+                    '<span class="session-done__stat-label">đã xem gợi ý</span>' +
+                  '</div>'
+                : '') +
             '</div>' +
 
             '<div class="session-breakdown">' +
@@ -322,13 +369,6 @@
           '</div>' +
         '</div>' +
       '</main>';
-
-    container.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      if (btn.getAttribute('data-action') === 'home') global.App.navigate('home');
-      if (btn.getAttribute('data-action') === 'restart') global.App.navigate('study', Store.state.topicId);
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -365,6 +405,44 @@
     setRevealed(true, container);
   }
 
+  /**
+   * Show a hint: the opening of the answer, which narrows the search space
+   * without handing the answer over.
+   *
+   * A card that has been hinted has not been recalled unaided, so choosing
+   * "Nhớ được" for it is recorded as "Nhớ một phần" instead.
+   */
+  function showHint(container, restoring) {
+    var card = currentCard();
+    if (!card) return;
+    if (Store.state.hintShown && !restoring) return;
+
+    var answer = Store.state.language === 'vi' ? card.a : (card.a_en || card.a);
+    var hint = global.Markdown.extractHint(answer);
+    Store.state.hintShown = true;
+
+    var slot = container.querySelector('#hint-slot');
+    if (!slot) return;
+
+    var panel = slot.querySelector('.hint');
+    if (!panel) {
+      panel = U.el('div', { class: 'hint' }, [
+        U.el('div', { class: 'hint__head', html: Icons.get('lightbulb', { size: 12 }) + 'Gợi ý' }),
+        U.el('p', { class: 'hint__text' })
+      ]);
+      slot.appendChild(panel);
+    }
+
+    var text = panel.querySelector('.hint__text');
+    if (text) text.textContent = hint || 'Câu hỏi này chưa có lời giải để gợi ý.';
+
+    renderDock(container);
+
+    if (!restoring) {
+      U.toast('Đã xem gợi ý — chọn "Nhớ được" sẽ được tính là "Nhớ một phần".');
+    }
+  }
+
   function rate(container, rating) {
     var card = currentCard();
     if (!card) return;
@@ -373,46 +451,62 @@
     var snapshot = JSON.parse(JSON.stringify(Store.state.srs.cards[key] || null));
     var previousIndex = Store.state.cardIndex;
     var queueLength = Store.state.queue.length;
+    var hinted = Store.state.hintShown;
 
-    Store.rate(key, rating);
+    // A hinted card has not been recalled unaided: "Nhớ được" becomes
+    // "Nhớ một phần" so the schedule stays honest.
+    var effective = rating;
+    if (hinted && rating === 3) effective = 2;
+
+    Store.rate(key, effective);
 
     var session = Store.state.sessionStats;
     if (session) {
       session.reviewed++;
-      if (rating === 1) session.again++;
-      else if (rating === 2) session.hard++;
-      else if (rating === 3) session.good++;
-      else if (rating === 4) session.easy++;
+      if (effective === 1) session.again++;
+      else if (effective === 2) session.hard++;
+      else if (effective === 3) session.good++;
+      else if (effective === 4) session.easy++;
+      if (hinted) session.hinted++;
     }
 
     // A failed card returns later in the same session.
-    if (rating === 1) Store.state.queue.push(card);
+    if (effective === 1) Store.state.queue.push(card);
 
     Store.state.cardIndex++;
     Store.state.revealed = false;
+    Store.state.hintShown = false;
 
     advance(container);
 
     // Offer a short undo window — cheap, and it removes the fear of a mis-click.
-    U.toast('Đã ghi nhận: ' + RATINGS[rating - 1].label, null, {
-      label: 'Hoàn tác',
-      onClick: function () {
-        if (snapshot) Store.state.srs.cards[key] = snapshot;
-        else delete Store.state.srs.cards[key];
-        Store.saveSRS();
-        Store.state.queue.length = queueLength;
-        Store.state.cardIndex = previousIndex;
-        Store.state.revealed = false;
-        if (session) {
-          session.reviewed--;
-          if (rating === 1) session.again--;
-          else if (rating === 2) session.hard--;
-          else if (rating === 3) session.good--;
-          else if (rating === 4) session.easy--;
+    U.toast(
+      (hinted && effective !== rating
+        ? 'Đã ghi nhận: ' + RATINGS[rating - 1].label + ' → ' + RATINGS[effective - 1].label + ' (đã xem gợi ý)'
+        : 'Đã ghi nhận: ' + RATINGS[effective - 1].label),
+      null,
+      {
+        label: 'Hoàn tác',
+        onClick: function () {
+          if (snapshot) Store.state.srs.cards[key] = snapshot;
+          else delete Store.state.srs.cards[key];
+          Store.saveSRS();
+          Store.state.queue.length = queueLength;
+          Store.state.cardIndex = previousIndex;
+          Store.state.revealed = false;
+          Store.state.hintShown = hinted;
+          if (session) {
+            session.reviewed--;
+            if (effective === 1) session.again--;
+            else if (effective === 2) session.hard--;
+            else if (effective === 3) session.good--;
+            else if (effective === 4) session.easy--;
+            if (hinted) session.hinted--;
+          }
+          render(container);
         }
-        render(container);
       }
-    });
+    );
   }
 
   function advance(container) {
@@ -436,7 +530,32 @@
     if (target < 0 || target >= Store.state.queue.length) return;
     Store.state.cardIndex = target;
     Store.state.revealed = false;
+    Store.state.hintShown = false;
     advance(container);
+  }
+
+  /** Refresh the focus timer without re-rendering the card. */
+  function updateTimer() {
+    var timer = Store.state.timer;
+    var clock = document.getElementById('timer-clock');
+    if (clock) {
+      clock.textContent = timer.roundMinutes === 0 ? '∞' : Store.formatClock(timer.remaining);
+      clock.classList.toggle('is-warning',
+        timer.roundMinutes > 0 && timer.remaining <= 60);
+    }
+    var toggle = document.querySelector('[data-action="timer-toggle"]');
+    if (toggle) {
+      toggle.innerHTML = Icons.get(timer.running ? 'pause' : 'play', { size: 14 });
+      toggle.setAttribute('aria-label', timer.running ? 'Tạm dừng bộ đếm' : 'Tiếp tục bộ đếm');
+    }
+  }
+
+  function setRoundLength(minutes) {
+    var timer = Store.state.timer;
+    timer.roundMinutes = minutes;
+    timer.remaining = minutes === 0 ? 0 : minutes * 60;
+    timer.mode = 'focus';
+    updateTimer();
   }
 
   function toggleStar(container) {
@@ -491,38 +610,37 @@
     });
   }
 
-  function bindStudy(container) {
-    container.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-action]');
-      if (!btn) return;
+  function handleClick(e, btn) {
+    var action = btn.getAttribute('data-action');
 
-      var action = btn.getAttribute('data-action');
-
-      if (action === 'reveal') reveal(container);
-      else if (action === 'rate') rate(container, parseInt(btn.getAttribute('data-rating'), 10));
-      else if (action === 'star') toggleStar(container);
-      else if (action === 'prev') go(-1, container);
-      else if (action === 'next') go(1, container);
-      else if (action === 'lang') toggleLanguage(container);
-      else if (action === 'home') global.App.navigate('home');
-      else if (action === 'browse') global.App.navigate('browse', Store.state.topicId);
-    });
-
-    var trigger = container.querySelector('#reveal-trigger');
-    if (trigger) {
-      trigger.addEventListener('click', function () {
-        setRevealed(!Store.state.revealed, container);
-      });
+    if (action === 'reveal') reveal(app);
+    else if (action === 'toggle-reveal') setRevealed(!Store.state.revealed, app);
+    else if (action === 'hint') showHint(app);
+    else if (action === 'rate') rate(app, parseInt(btn.getAttribute('data-rating'), 10));
+    else if (action === 'star') toggleStar(app);
+    else if (action === 'prev') go(-1, app);
+    else if (action === 'next') go(1, app);
+    else if (action === 'lang') toggleLanguage(app);
+    else if (action === 'home') global.App.navigate('home');
+    else if (action === 'browse') global.App.navigate('browse', Store.state.topicId);
+    else if (action === 'restart') global.App.navigate('study', Store.state.topicId);
+    else if (action === 'timer-toggle') {
+      Store.state.timer.running = !Store.state.timer.running;
+      updateTimer();
     }
   }
 
   global.StudyView = {
     render: render,
+    handleClick: handleClick,
     reveal: reveal,
+    showHint: showHint,
     rate: rate,
     go: go,
     toggleStar: toggleStar,
     toggleLanguage: toggleLanguage,
+    updateTimer: updateTimer,
+    setRoundLength: setRoundLength,
     currentCard: currentCard
   };
 })(window);

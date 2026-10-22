@@ -38,9 +38,7 @@
   ];
 
   function cardsFor(topicId) {
-    if (topicId === 'all') return Store.state.allCards;
-    var topic = Store.state.topicMap[topicId];
-    return topic && topic.questions ? topic.questions : [];
+    return Store.cardsFor(topicId);
   }
 
   function statusOf(card) {
@@ -50,46 +48,61 @@
     return srs.state;
   }
 
-  function matches(card, foldedQuery) {
-    if (filters.level !== 'all' && card.level !== filters.level) return false;
-
-    if (filters.status !== 'all') {
-      var key = Store.cardKey(card.topicId, card.id);
-      var srs = Store.state.srs.cards[key];
-      var st = srs ? srs.state : 'new';
-      if (filters.status === 'starred' && !(srs && srs.starred)) return false;
-      if (filters.status === 'due' && !(srs && srs.due <= U.todayStr())) return false;
-      if (filters.status === 'new' && st !== 'new') return false;
-      if (filters.status === 'mastered' && st !== 'mastered') return false;
-      if (filters.status === 'learning' && st !== 'learning' && st !== 'review') return false;
-    }
-
-    if (!foldedQuery) return true;
-
-    var r = U.fuzzy(foldedQuery, card.q);
-    if (!r) r = U.fuzzy(foldedQuery, card.q_en);
-    if (!r) r = U.fuzzy(foldedQuery, card.subcategory || '');
-    return !!r;
-  }
-
+  /**
+   * Apply the level/status filters, then the text query.
+   * The text query goes through the shared search core so that this list
+   * and the command palette always agree on what a query means.
+   */
   function filtered() {
-    var folded = U.foldText(filters.query).trim();
-    var list = cardsFor(Store.state.topicId).filter(function (card) {
-      return matches(card, folded);
+    var cards = cardsFor(Store.state.topicId).filter(function (card) {
+      if (filters.level !== 'all' && card.level !== filters.level) return false;
+
+      if (filters.status !== 'all') {
+        var key = Store.cardKey(card.topicId, card.id);
+        var srs = Store.state.srs.cards[key];
+        var st = srs ? srs.state : 'new';
+        if (filters.status === 'starred' && !(srs && srs.starred)) return false;
+        if (filters.status === 'due' && !(srs && srs.due <= U.todayStr())) return false;
+        if (filters.status === 'new' && st !== 'new') return false;
+        if (filters.status === 'mastered' && st !== 'mastered') return false;
+        if (filters.status === 'learning' && st !== 'learning' && st !== 'review') return false;
+      }
+      return true;
     });
-    return list;
+
+    var query = filters.query.trim();
+    if (!query) return { cards: cards, ranges: {} };
+
+    var hits = global.Search.query(query);
+    var allowed = {};
+    var ranges = {};
+
+    hits.forEach(function (hit) {
+      var key = hit.entry.card.topicId + '_' + hit.entry.card.id;
+      allowed[key] = true;
+      // Only highlight when the match was in the question itself.
+      if (hit.indices && (hit.field === 'q' || hit.field === 'q_en')) {
+        ranges[key] = hit.indices;
+      }
+    });
+
+    return {
+      cards: cards.filter(function (card) {
+        return allowed[card.topicId + '_' + card.id];
+      }),
+      ranges: ranges
+    };
   }
 
-  function rowHtml(card, index, folded) {
+  function rowHtml(card, index, ranges) {
     var key = Store.cardKey(card.topicId, card.id);
     var srs = Store.state.srs.cards[key];
     var state = srs ? srs.state : 'new';
     var starred = srs && srs.starred;
 
     var questionHtml = U.escapeHtml(card.q);
-    if (folded) {
-      var r = U.fuzzy(folded, card.q);
-      if (r) questionHtml = U.highlight(card.q, r.indices);
+    if (ranges && ranges[key]) {
+      questionHtml = U.highlight(card.q, ranges[key]);
     }
 
     var preview = (card.a || '').replace(/[*#`>\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 150);
@@ -120,9 +133,9 @@
 
   function render(container) {
     var topic = Store.topicById(Store.state.topicId);
-    var list = filtered();
+    var result = filtered();
+    var list = result.cards;
     var shown = list.slice(0, filters.limit);
-    var folded = U.foldText(filters.query).trim();
 
     container.innerHTML =
       '<main class="view">' +
@@ -162,11 +175,11 @@
         '</div>' +
       '</main>';
 
-    paintResults(container, list, shown, folded);
+    paintResults(container, list, shown, result.ranges);
     bind(container);
   }
 
-  function paintResults(container, list, shown, folded) {
+  function paintResults(container, list, shown, ranges) {
     var listEl = container.querySelector('#browse-list');
     var footerEl = container.querySelector('#browse-footer');
     var countEl = container.querySelector('#browse-count');
@@ -188,7 +201,7 @@
     }
 
     listEl.innerHTML = shown.map(function (card, i) {
-      return rowHtml(card, i, folded);
+      return rowHtml(card, i, ranges);
     }).join('');
 
     if (shown.length < list.length) {
@@ -201,9 +214,10 @@
   }
 
   function refresh(container) {
-    var list = filtered();
+    var result = filtered();
+    var list = result.cards;
     var shown = list.slice(0, filters.limit);
-    paintResults(container, list, shown, U.foldText(filters.query).trim());
+    paintResults(container, list, shown, result.ranges);
   }
 
   function bind(container) {
@@ -243,21 +257,19 @@
         refresh(container);
       });
     }
+  }
 
-    container.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      var action = btn.getAttribute('data-action');
+  function handleClick(e, btn) {
+    var action = btn.getAttribute('data-action');
 
-      if (action === 'open') {
-        global.App.openQuestion(btn.getAttribute('data-topic'), parseInt(btn.getAttribute('data-id'), 10));
-      } else if (action === 'study') {
-        global.App.navigate('study', Store.state.topicId);
-      } else if (action === 'more') {
-        filters.limit += PAGE_SIZE;
-        refresh(container);
-      }
-    });
+    if (action === 'open') {
+      global.App.openQuestion(btn.getAttribute('data-topic'), parseInt(btn.getAttribute('data-id'), 10));
+    } else if (action === 'study') {
+      global.App.navigate('study', Store.state.topicId);
+    } else if (action === 'more') {
+      filters.limit += PAGE_SIZE;
+      refresh(document.getElementById('app'));
+    }
   }
 
   function setTopic(topicId) {
@@ -267,6 +279,7 @@
 
   global.BrowseView = {
     render: render,
+    handleClick: handleClick,
     setTopic: setTopic,
     filters: filters
   };

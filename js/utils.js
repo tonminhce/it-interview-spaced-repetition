@@ -295,12 +295,19 @@
    * otherwise run it directly. Keeps DOM mutations batched so the browser can
    * animate old -> new states.
    */
-  function withViewTransition(update, opts) {
+  function withViewTransition(update) {
     if (!document.startViewTransition || global.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       update();
       return;
     }
-    document.startViewTransition(function () { update(); });
+    var transition = document.startViewTransition(function () { update(); });
+    // Overlapping transitions are aborted by the browser; that is expected
+    // when the user rates quickly, and must not surface as an error.
+    ['ready', 'updateCallbackDone', 'finished'].forEach(function (key) {
+      if (transition[key] && typeof transition[key].catch === 'function') {
+        transition[key].catch(function () { /* superseded */ });
+      }
+    });
   }
 
   global.U = {

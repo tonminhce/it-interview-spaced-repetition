@@ -30,42 +30,6 @@
   };
 
   // ---------------------------------------------------------------------------
-  // Search index
-  //
-  // Built once, off the critical path, so that opening the palette never
-  // pays the cost of folding ~1.2 M characters of question and answer text.
-  // ---------------------------------------------------------------------------
-
-  var index = { ready: false, entries: [] };
-
-  function buildIndex() {
-    var cards = Store.state.allCards;
-    var entries = new Array(cards.length);
-
-    for (var i = 0; i < cards.length; i++) {
-      var c = cards[i];
-      entries[i] = {
-        card: c,
-        q: U.fold(c.q),
-        qEn: U.fold(c.q_en),
-        sub: U.fold(c.subcategory),
-        a: U.fold(c.a),
-        aEn: U.fold(c.a_en)
-      };
-    }
-
-    index.entries = entries;
-    index.ready = true;
-  }
-
-  function warmIndex() {
-    if (index.ready) return;
-    var run = function () { buildIndex(); };
-    if (global.requestIdleCallback) global.requestIdleCallback(run, { timeout: 3000 });
-    else setTimeout(run, 200);
-  }
-
-  // ---------------------------------------------------------------------------
   // Recent searches
   // ---------------------------------------------------------------------------
 
@@ -86,76 +50,6 @@
     list.unshift(q);
     list = list.slice(0, 6);
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Query evaluation
-  // ---------------------------------------------------------------------------
-
-  /** Score one indexed entry against the folded query. */
-  function scoreEntry(entry, foldedQuery, terms) {
-    var best = null;
-
-    // Question text — full fuzzy scoring.
-    var rq = U.fuzzy(foldedQuery, entry.card.q);
-    if (rq) {
-      best = { score: rq.score * 1.0, indices: rq.indices, field: 'q' };
-    }
-
-    var ren = U.fuzzy(foldedQuery, entry.card.q_en);
-    if (ren && (!best || ren.score * 0.92 > best.score)) {
-      best = { score: ren.score * 0.92, indices: ren.indices, field: 'q_en' };
-    }
-
-    // Subcategory — exact substring only.
-    if (entry.sub.text && foldedQuery && entry.sub.text.indexOf(foldedQuery) !== -1) {
-      var subScore = 700 - Math.min(entry.sub.text.indexOf(foldedQuery), 40) * 2;
-      if (!best || subScore * 0.75 > best.score) {
-        best = { score: subScore * 0.75, indices: null, field: 'sub' };
-      }
-    }
-
-    // Answer body — substring match, ranked below the question itself.
-    var answerHit = null;
-    if (foldedQuery) {
-      var posA = entry.a.text ? entry.a.text.indexOf(foldedQuery) : -1;
-      var posB = entry.aEn.text ? entry.aEn.text.indexOf(foldedQuery) : -1;
-      if (posA !== -1 || posB !== -1) {
-        var pos = posA !== -1 ? posA : posB;
-        answerHit = { pos: pos, isEn: posA === -1 };
-        var ansScore = (520 - Math.min(pos, 60) * 2) * 0.62;
-        if (!best || ansScore > best.score) {
-          best = { score: ansScore, indices: null, field: 'answer' };
-        }
-      }
-    }
-
-    return best ? { entry: entry, score: best.score, indices: best.indices, field: best.field, answerHit: answerHit } : null;
-  }
-
-  function searchQuestions(query) {
-    var folded = U.foldText(query).trim();
-    if (!folded) return [];
-
-    var terms = folded.split(/\s+/).filter(Boolean);
-    var results = [];
-
-    for (var i = 0; i < index.entries.length; i++) {
-      var hit = scoreEntry(index.entries[i], folded, terms);
-      if (hit) results.push(hit);
-    }
-
-    results.sort(function (a, b) { return b.score - a.score; });
-    return results.slice(0, MAX_RESULTS);
-  }
-
-  /** Snippet of the answer around the first match. */
-  function answerSnippet(entry, hit) {
-    var source = hit.answerHit && hit.answerHit.isEn ? entry.card.a_en : entry.card.a;
-    var pos = hit.answerHit ? hit.answerHit.pos : 0;
-    var start = Math.max(0, pos - 45);
-    var text = source.slice(start, start + 150).replace(/\s+/g, ' ').trim();
-    return (start > 0 ? '…' : '') + text + '…';
   }
 
   // ---------------------------------------------------------------------------
@@ -275,14 +169,14 @@
       });
     }
 
-    var hits = searchQuestions(trimmed);
+    var hits = global.Search.query(trimmed);
     if (hits.length) {
       items.push({ group: 'Câu hỏi' });
       hits.forEach(function (hit) {
         var card = hit.entry.card;
         var titleHtml = hit.indices
-          ? U.highlight(hit.field === 'q_en' ? card.q_en : card.q, hit.indices)
-          : U.escapeHtml(hit.field === 'q_en' ? card.q_en : card.q);
+          ? U.highlight(global.Search.matchedText(hit), hit.indices)
+          : U.escapeHtml(global.Search.matchedText(hit));
 
         items.push({
           type: 'question',
@@ -291,7 +185,7 @@
           title: card.q,
           titleHtml: titleHtml,
           subtitle: hit.field === 'answer'
-            ? answerSnippet(hit.entry, hit)
+            ? global.Search.answerSnippet(hit)
             : (card.subcategory || card.topicName),
           badge: card.topicName,
           run: function () {
@@ -451,7 +345,7 @@
   function open(initialQuery) {
     if (palette.open) return;
     palette.open = true;
-    warmIndex();
+    global.Search.warmIndex();
 
     // Remember what had focus so it can be restored on close.
     palette.returnFocus = document.activeElement;
@@ -571,6 +465,6 @@
     close: close,
     toggle: toggle,
     isOpen: function () { return palette.open; },
-    warmIndex: warmIndex
+    warmIndex: function () { global.Search.warmIndex(); }
   };
 })(window);

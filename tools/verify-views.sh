@@ -64,7 +64,8 @@ check "home"        "#/home" \
 
 check "study-all"   "#/study/all" \
   'class="flashcard"' 'class="flashcard__qbar"' 'id="answer-region"' 'class="reveal__inner"' \
-  'id="reveal-trigger"' 'class="rating-dock"'
+  'id="reveal-trigger"' 'class="rating-dock"' 'id="hint-slot"' 'data-action="hint"' \
+  'id="timer-clock"' 'id="timer-length"'
 
 check "study-redis" "#/study/redis" \
   'class="flashcard"' 'id="card-question"' 'class="prose"'

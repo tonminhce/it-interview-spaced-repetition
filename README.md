@@ -43,18 +43,23 @@ Tiến độ lưu trong `localStorage` (`srs_progress_v1`), kèm lịch sử ôn
 **Học tập**
 - **Mở rộng mượt mà** — đáp án trượt xuống đúng chỗ thẻ bấm, dùng kỹ thuật `grid-template-rows: 0fr → 1fr` (không cần JS đo chiều cao, không nhảy layout).
 - **Thanh câu hỏi dính** — câu hỏi luôn nằm trên màn hình khi bạn đọc một đáp án dài (đáp án trung vị ~153 từ, dài nhất ~406 từ).
+- **Gợi ý (`H`)** — lộ câu đầu tiên của đáp án để định hướng, nhưng chưa phải cả lời giải. Thẻ đã xem gợi ý thì chọn *"Nhớ được"* sẽ được tính thành *"Nhớ một phần"*, vì bạn đã không tự nhớ được.
 - **Đếm từ bộ nhớ** — thẻ bấm "Thu gọn" để gấp lại, câu hỏi không mất khỏi tầm mắt.
 - **Hoàn tác 5 giây** — chấm nhầm thì bấm "Hoàn tác" ngay sau khi đánh giá, lịch ôn được trả về đúng trạng thái cũ.
+- **Bộ đếm phiên (Pomodoro)** — mỗi vòng 10 / 25 / 45 phút (hoặc không giới hạn), hết giờ thì màn hình nghỉ ngắn 7 phút. Bộ đếm chỉ chạy khi bạn đang ở màn hình ôn tập.
 - **Song ngữ VI/EN** — chuyển ngôn ngữ ngay trên thẻ, giữ nguyên trạng thái mở/đóng.
-- **Bảng tổng kết phiên** — số thẻ đã ôn, tỉ lệ nhớ được, chuỗi ngày, và phân bổ 4 mức đánh giá.
+- **Bảng tổng kết phiên** — số thẻ đã ôn, tỉ lệ nhớ được, chuỗi ngày, phân bổ 4 mức đánh giá, và số thẻ đã xem gợi ý.
 
 **Tìm kiếm**
 - **Command Palette (`Ctrl` + `K`)** — tìm trong toàn bộ 758 câu hỏi, fuzzy match không phân biệt dấu tiếng Việt.
   - `"cong nghe"` khớp với *"Công nghệ"*, `"da phuong"` khớp với *"đa phương"*.
-  - Tìm trên cả câu hỏi Việt/Anh, chủ đề con, và nội dung đáp án.
+  - **Mở rộng từ đồng nghĩa**: `"bo nho dem"` dẫn tới các câu hỏi về *cache*, `"khoa phan tan"` dẫn tới *"Distributed lock với Redis: Redlock algorithm"*.
+  - **Từ khoá theo chủ đề**: gõ `"orchestration"` vẫn ra câu hỏi Docker & Kubernetes dù từ đó không xuất hiện trong câu hỏi.
+  - Tìm trên cả câu hỏi Việt/Anh, chủ đề con, từ khoá chủ đề, và nội dung đáp án.
   - Tô sáng phần khớp, nhóm theo loại, điều hướng bằng `↑` `↓`, `Enter` để mở.
   - Chọn một kết quả → mở thẻ với **đáp án đã mở sẵn**.
 - **Danh sách câu hỏi** — lọc theo độ khó và trạng thái học, tìm kiếm có debounce, phân trang (60 câu/lần).
+  - Cùng một hạt từ luôn cho cùng một kết quả với Command Palette, vì cả hai dùng chung `js/search.js`.
 
 **Giao diện**
 - **Hệ thống design token** — mọi màu, khoảng cách, bo góc, chuyển động đều khai báo tập trung; sáng/tối dùng chung một bộ token.
@@ -73,6 +78,7 @@ Tiến độ lưu trong `localStorage` (`srs_progress_v1`), kèm lịch sử ôn
 | :--- | :--- |
 | `Ctrl` / `⌘` + `K` | Mở Command Palette |
 | `Space` / `Enter` | Mở đáp án; khi đã mở → đánh giá "Nhớ được" |
+| `H` | Xem gợi ý (câu đầu tiên của đáp án) |
 | `1` `2` `3` `4` | Chưa nhớ / Nhớ một phần / Nhớ được / Nhớ ngay |
 | `S` | Gắn sao câu hỏi |
 | `L` | Đổi ngôn ngữ VI / EN |
@@ -99,13 +105,15 @@ styles/
 js/
   icons.js              # bộ icon SVG nội tuyến
   utils.js              # DOM helper, fold tiếng Việt, fuzzy scoring, toast
-  store.js              # nạp dữ liệu, lưu trữ, engine SM-2
-  markdown.js           # render đáp án + code block + bảng
+  synonyms.js           # từ đồng nghĩa Việt↔Anh + từ khoá theo chủ đề
+  store.js              # nạp dữ liệu, lưu trữ, engine SM-2, bộ đếm phiên
+  markdown.js           # render đáp án + code block + bảng + rút gợi ý
+  search.js             # lõi tìm kiếm dùng chung cho palette và danh sách
   palette.js            # Command Palette (Ctrl+K)
   views/home.js         # dashboard
-  views/study.js        # phiên ôn tập + mở rộng mượt mà
+  views/study.js        # phiên ôn tập + mở rộng mượt mà + gợi ý
   views/browse.js       # danh sách câu hỏi
-  app.js                # router (hash), phím tắt, modal, khởi động
+  app.js                # router (hash), phím tắt, modal, bộ đếm, giờ nghỉ
 
 tools/
   verify-views.sh       # render từng view bằng headless Chrome và kiểm tra DOM

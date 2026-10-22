@@ -123,7 +123,6 @@
       '</main>';
 
     container.innerHTML = html;
-    bindHome(container);
   }
 
   function topicCards() {
@@ -162,24 +161,20 @@
     }).join('');
   }
 
-  function bindHome(container) {
-    container.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      var action = btn.getAttribute('data-action');
-      var topic = btn.getAttribute('data-topic');
+  function handleClick(e, btn) {
+    var action = btn.getAttribute('data-action');
+    var topic = btn.getAttribute('data-topic');
 
-      if (action === 'study' || action === 'study-all') {
-        global.App.navigate('study', topic || 'all');
-      } else if (action === 'browse') {
-        global.App.navigate('browse', topic);
-      } else if (action === 'open-palette') {
-        global.Palette.open();
-      } else if (action === 'open-data') {
-        global.App.openDataModal();
-      }
-    });
+    if (action === 'study' || action === 'study-all') {
+      global.App.navigate('study', topic || 'all');
+    } else if (action === 'browse') {
+      global.App.navigate('browse', topic);
+    } else if (action === 'open-palette') {
+      global.Palette.open();
+    } else if (action === 'open-data') {
+      global.App.openDataModal();
+    }
   }
 
-  global.HomeView = { render: render };
+  global.HomeView = { render: render, handleClick: handleClick };
 })(window);

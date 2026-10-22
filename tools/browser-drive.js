@@ -148,7 +148,192 @@ async function main() {
       await sleep(1400);
     };
 
+    /** Press a key for real, through the browser's input pipeline. */
+    const pressKey = async (key, code, keyCode) => {
+      await cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key, code,
+        windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode
+      });
+      await cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key, code,
+        windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode
+      });
+    };
+
     const scenarios = {
+      async globals() {
+        await goto('#/study/java');
+        const g = await evaluate(
+          "({ Icons: typeof Icons, U: typeof U, Synonyms: typeof Synonyms, Store: typeof Store," +
+          " Markdown: typeof Markdown, Search: typeof Search, Palette: typeof Palette," +
+          " HomeView: typeof HomeView, StudyView: typeof StudyView, BrowseView: typeof BrowseView," +
+          " App: typeof App, showHint: typeof (window.StudyView ? StudyView.showHint : 'no-view')," +
+          " hintSlot: !!document.getElementById('hint-slot') })"
+        );
+        console.log('  globals: ' + JSON.stringify(g));
+      },
+
+      async hintFlow() {
+        await goto('#/study/java');
+        await evaluate("document.getElementById('reveal-trigger').click()");
+        await sleep(300);
+
+        // Press H for the hint.
+        await pressKey('h', 'KeyH', 72);
+        await sleep(500);
+
+        const hint = await evaluate(`({
+          hasPanel: !!document.querySelector('.hint'),
+          text: document.querySelector('.hint__text') ? document.querySelector('.hint__text').textContent.slice(0, 90) : null,
+          hintButtonSpent: !!document.querySelector('[data-action="hint"][disabled]')
+        })`);
+        console.log('  hint: ' + JSON.stringify(hint));
+
+        // Rate "Nhớ được" (3). Because a hint was shown it must be recorded
+        // as "Nhớ một phần" (2): ease 2.35 rather than 2.5.
+        await evaluate("document.querySelector('[data-rating=\"3\"]').click()");
+        await sleep(700);
+
+        const rec = await evaluate(`(() => {
+          const srs = JSON.parse(localStorage.getItem('srs_progress_v1') || '{}');
+          const key = Object.keys(srs.cards || {})[0];
+          return { key, ease: srs.cards[key].ease, reps: srs.cards[key].reps };
+        })()`);
+        console.log('  recorded: ' + JSON.stringify(rec));
+        console.log('  EXPECTED ease 2.35 (downgraded from 2.5)');
+        await shot('40-hint');
+      },
+
+      async synonymFlow() {
+        await goto('#/home');
+
+        const paletteSearch = async (q) => {
+          await evaluate("if (window.Palette && Palette.isOpen()) Palette.close()");
+          await evaluate("document.getElementById('search-trigger').click()");
+          await sleep(300);
+          await evaluate(`(() => {
+            const i = document.getElementById('palette-input');
+            i.value = ${JSON.stringify(q)};
+            i.dispatchEvent(new Event('input', { bubbles: true }));
+          })()`);
+          await sleep(600);
+          return evaluate(`({
+            count: document.querySelectorAll('.palette__item').length,
+            topics: Array.from(document.querySelectorAll('.palette__item .chip')).map(c => c.textContent).slice(0, 5),
+            first: document.querySelector('.palette__item-title') ? document.querySelector('.palette__item-title').textContent.slice(0, 70) : null
+          })`);
+        };
+
+        console.log('  "bo nho dem" → ' + JSON.stringify(await paletteSearch('bo nho dem')));
+        console.log('  "bộ nhớ đệm"  → ' + JSON.stringify(await paletteSearch('bộ nhớ đệm')));
+        console.log('  "orchestration" → ' + JSON.stringify(await paletteSearch('orchestration')));
+        console.log('  "khoa phan tan" → ' + JSON.stringify(await paletteSearch('khoa phan tan')));
+        await shot('41-synonyms');
+      },
+
+      async timerFlow() {
+        await goto('#/study/redis');
+        await sleep(400);
+
+        const before = await evaluate("document.getElementById('timer-clock').textContent");
+        console.log('  clock at start: ' + before);
+
+        // Change the round length through the select.
+        await evaluate(`(() => {
+          const s = document.getElementById('timer-length');
+          s.value = '10';
+          s.dispatchEvent(new Event('change', { bubbles: true }));
+        })()`);
+        await sleep(400);
+        console.log('  clock after selecting 10 min: ' +
+          await evaluate("document.getElementById('timer-clock').textContent"));
+
+        // Fast-forward to the end of the round.
+        await evaluate("Store.state.timer.remaining = 2");
+        await sleep(3200);
+
+        const breakState = await evaluate(`({
+          modal: !!document.getElementById('break-modal'),
+          clock: document.getElementById('break-clock') ? document.getElementById('break-clock').textContent : null,
+          mode: Store.state.timer.mode
+        })`);
+        console.log('  break state: ' + JSON.stringify(breakState));
+        await shot('42-break');
+
+        // Resume.
+        await evaluate("document.querySelector('[data-break=\"resume\"]').click()");
+        await sleep(400);
+        console.log('  after resume: ' + JSON.stringify(await evaluate(`({
+          modal: !!document.getElementById('break-modal'),
+          mode: Store.state.timer.mode,
+          clock: document.getElementById('timer-clock').textContent
+        })`)));
+      },
+
+      async browseFlow() {
+        const state = async (label) => {
+          const s = await evaluate(`({
+            hash: location.hash,
+            view: Store.state.view,
+            topicId: Store.state.topicId === undefined ? 'undefined' : Store.state.topicId,
+            queueLen: Store.state.queue.length,
+            // How many delegated click listeners have accumulated on #app?
+            appListeners: (window.__listenerProbe = window.__listenerProbe || 0)
+          })`);
+          console.log('  ' + label + ': ' + JSON.stringify(s));
+          return s;
+        };
+
+        await goto('#/browse/java');
+        await state('browse/java loaded');
+
+        // Click the first question row, then come back.
+        await evaluate("document.querySelector('.q-row').click()");
+        await sleep(600);
+        await state('after clicking a question row');
+
+        // Now click "Ôn chuyên đề này" from the browse view.
+        await evaluate("document.querySelector('[data-action=\"browse\"]').click()");
+        await sleep(500);
+        await state('back in browse');
+
+        await evaluate("document.querySelector('[data-action=\"study\"]').click()");
+        await sleep(700);
+        const s = await state('after "Ôn chuyên đề này"');
+        console.log('  EXPECTED topicId=java, GOT: ' + s.topicId + '  hash=' + s.hash);
+
+        const title = await evaluate(
+          "document.querySelector('.study-bar__title') ? document.querySelector('.study-bar__title').textContent.trim() : '(none)'"
+        );
+        console.log('  study bar title: ' + title);
+      },
+
+      async doubleRate() {
+        // Navigate home -> study -> home -> study, then rate once and see how
+        // many reviews were recorded.
+        await goto('#/home');
+        await goto('#/study/redis');
+        await goto('#/home');
+        await goto('#/study/redis');
+        await sleep(400);
+
+        const before = await evaluate(
+          "Object.keys(JSON.parse(localStorage.getItem('srs_progress_v1')||'{}').cards||{}).length"
+        );
+        await evaluate("document.getElementById('reveal-trigger').click()");
+        await sleep(400);
+        await evaluate("document.querySelector('[data-rating=\"3\"]').click()");
+        await sleep(700);
+
+        const after = await evaluate(`({
+          cards: Object.keys(JSON.parse(localStorage.getItem('srs_progress_v1')||'{}').cards||{}).length,
+          reviews: (JSON.parse(localStorage.getItem('srs_progress_v1')||'{}').stats||{}).reviewsToday,
+          counter: document.getElementById('study-counter') ? document.getElementById('study-counter').textContent : '(none)'
+        })`);
+        console.log('  cards before: ' + before + ' | after: ' + JSON.stringify(after));
+        console.log('  EXPECTED exactly 1 review, 1 card');
+      },
+
       async diag() {
         const probe = async (label) => {
           const s = await evaluate(`({
@@ -305,7 +490,12 @@ async function main() {
       console.error('Unknown scenario: ' + scenario + '. Available: ' + Object.keys(scenarios).join(', '));
       process.exitCode = 2;
     } else {
-      await scenarios[scenario]();
+      try {
+        await scenarios[scenario]();
+      } catch (err) {
+        console.log('\nSCENARIO FAILED: ' + err.message);
+        process.exitCode = 1;
+      }
     }
 
     if (errors.length) {
