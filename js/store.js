@@ -136,6 +136,10 @@
 
   var TOPICS = [
     {
+      id: 'jd-interview-notes', name: 'JD Interview Notes (2+ Years)', icon: 'bookMarked', hue: 168,
+      desc: 'Bộ câu hỏi & ghi chú trọng tâm sát JD 2+ năm: Java, Spring Boot, Redis, DB, System Design, Frontend & Git.'
+    },
+    {
       id: 'all', name: 'Tất cả chuyên đề', icon: 'layers', hue: 245,
       desc: 'Toàn bộ ngân hàng 758 câu hỏi phỏng vấn chuẩn hoá.'
     },

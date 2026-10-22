@@ -130,6 +130,7 @@
   // reach a topic's questions with a word that never appears in the
   // question itself ("orchestration" for Docker & Kubernetes).
   var TOPIC_KEYWORDS = {
+    'jd-interview-notes': ['jd', 'interview', 'notes', 'java', 'spring', 'redis', 'sql', 'system design', 'frontend', 'react', 'git', 'concurrency', 'jpa', 'hibernate', 'postgres', 'kafka', 'docker'],
     'java': ['jvm', 'bytecode', 'garbage collection', 'gc', 'collection framework',
       'concurrency', 'thread', 'virtual thread', 'lambda', 'stream api', 'exception',
       'serialization', 'autoboxing', 'string pool', 'classloader'],
